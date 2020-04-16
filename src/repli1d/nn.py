@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from keras.models import Sequential
@@ -65,6 +64,7 @@ def load_signal(name,
         notnan = []
 
     df = df[targets+marks]
+    print(df.describe())
 
     yinit = [df.pop(target) for target in targets]
     # print(yinit.shape,"Yinit shape")
@@ -74,37 +74,44 @@ def load_signal(name,
 
     for col in df.columns:
         # print(col)
-        if col not in ["DNaseI", "initiation", "Meth", "Meth450", "RFDs", "MRTs", "RFDe", "MRTe"]:
+        if col not in ["DNaseI", "initiation", "Meth", "Meth450","RFDe","MRTe","RFDs","MRTs"]:
             df[col] = transform_norm(df[col])
         elif col == "DNaseI":
             df[col] = transform_DNase(df[col])
-        elif col == "initiation":
+        elif col in ["initiation","Stall"]:
             df[col] = df[col] / np.max(df[col])
         elif "Meth" in col:
             df[col] = transform_norm_meth(df[col])
         elif "RFD" in col:
-            if "RFDe" in col:
+            if "RFD" in col:
                 # print("Nanpo")
                 df[col] = nan_polate(df[col])
             if smm is not None:
                 df[col] = smooth(df[col], smm)
             df[col] = (df[col]+1)/2
         elif "MRT" in col:
-            if "MRTe" in col:
+            if "MRT" in col:
                 df[col] = nan_polate(df[col])
             pass
+
+        if np.sum(np.isnan(df[col])) !=0:
+            raise "NanVal"
 
     print(np.max(yinit[0]), "max")
     print(df.describe())
 
+
+
     yinit0 = []
     for y, t in zip(yinit, targets):
-        if t == "initiation":
+        if t in ["initiation","Stall"]:
             yinit0.append(y/np.max(y))
-        if t == "DNaseI":
+        elif t == "DNaseI":
             yinit0.append(transform_DNase(y))
-        if t == "OKSeq":
+        elif t == "OKSeq":
             yinit0.append((y+1)/2)
+        else:
+            raise "Undefined target"
 
     yinit = np.array(yinit0).T
     yinit[np.isnan(yinit)] = 0
@@ -138,7 +145,7 @@ def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     return X, Y
 
 
-def create_model(X_train, targets, nfilters, kernel_length):
+def create_model(X_train, targets, nfilters, kernel_length,loss="binary_crossentropy"):
     print(X_train.shape,targets,nfilters,kernel_length)
 
     K.set_image_data_format('channels_last')
@@ -166,7 +173,7 @@ def create_model(X_train, targets, nfilters, kernel_length):
     # multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
     #                                loss='mean_squared_logarithmic_error')
     multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-                                    loss='binary_crossentropy')
+                                    loss=loss)
     multi_layer_keras_model.summary()
     return multi_layer_keras_model
 
@@ -206,19 +213,23 @@ if __name__ == "__main__":
     parser.add_argument('--cell', type=str, default=None)
     parser.add_argument('--rootnn', type=str, default=None)
     parser.add_argument('--nfilters', type=int, default=15)
+    parser.add_argument('--resolution', type=int, default=5)
     parser.add_argument('--sm', type=int, default=None)  # Smoothing exp data
 
     parser.add_argument('--window', type=int, default=51)
     parser.add_argument('--kernel_length', type=int, default=10)
     parser.add_argument('--weight', type=str, default=None)
+    parser.add_argument('--loss', type=str, default="binary_crossentropy")
     parser.add_argument('--marks', nargs='+', type=str, default=[])
     parser.add_argument('--targets', nargs='+', type=str, default=["initiation"])
     parser.add_argument('--listfile', nargs='+', type=str, default=[])
     parser.add_argument('--enrichment', nargs='+', type=float, default=[0.1, 1.0, 5.0])
     parser.add_argument('--roadmap',action="store_true")
     parser.add_argument('--noenrichment',action="store_true")
+    parser.add_argument('--predict_files', nargs='+', type=str, default=[])
 
-    parser.add_argument('--restart', type=str, default=None)
+    parser.add_argument('--restart',action="store_true")
+
 
 
     args = parser.parse_args()
@@ -239,7 +250,10 @@ if __name__ == "__main__":
     os.makedirs(args.rootnn, exist_ok=True)
 
     root = "/home/jarbona/projet_yeast_replication/notebooks/DNaseI/repli1d/"
-    XC = pd.read_csv(root + "coords_K562.csv", sep="\t")  # List of chromosome coordinates
+    if args.resolution == 5:
+        XC = pd.read_csv(root + "coords_K562.csv", sep="\t")  # List of chromosome coordinates
+    if args.resolution ==1:
+        XC = pd.read_csv("data/Hela_peak_1_kb.csv", sep="\t")
 
     if args.listfile == []:
         listfile = []
@@ -247,26 +261,35 @@ if __name__ == "__main__":
             name = "/home/jarbona/repli1D/data/mlformat_whole_sig_%s_dec2.csv" % cellt
             name = "/home/jarbona/repli1D/data/mlformat_whole_sig_standard%s_dec2.csv" % cellt
             name = "/home/jarbona/repli1D/data/mlformat_whole_sig_standard%s_nn.csv" % cellt
+            wig = True
             if args.roadmap:
-                namep = "/home/jarbona/repli1D/data/roadmap_%s_nn.csv" % cellt
+                name = "/home/jarbona/repli1D/data/roadmap_%s_nn.csv" % cellt
+                wig = False
 
             listfile.append(name)
     else:
         listfile = args.listfile
+        wig = False
 
-    if args.weight is None:
+    if args.wig is not None:
+        if args.wig == 1:
+            wig = True
+        else:
+            wig = False
+    if args.weight is None or args.restart:
         X_train = []
         for name in listfile:
             print(name)
             df, yinit, notnan = load_signal(
-                name, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm)
-
+                name, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm,wig=wig)
+            """
             traint = [1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19]
             valt = [4, 18, 21, 22]
             testt = [5, 20]
+            """
             traint = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-            valt = [1, 20, 21, 22, 23]
-            testt = []
+            valt = [20, 21, 22, 23]
+            testt = [1]
 
             for v in testt:
                 assert(v not in traint)
@@ -288,16 +311,23 @@ if __name__ == "__main__":
 
         X_train, y_train = unison_shuffled_copies(X_train, y_train)
 
+        print("Shape",X_train.shape,y_train.shape)
+
     if args.weight is not None:
         multi_layer_keras_model = load_model(args.weight)
         multi_layer_keras_model.summary()
 
+    if not args.restart and args.weight is not None:
+        #only prediction
+        pass
+
     else:
         multi_layer_keras_model = create_model(
-            X_train, targets=args.targets, nfilters=args.nfilters, kernel_length=args.kernel_length)
+            X_train, targets=args.targets, nfilters=args.nfilters, kernel_length=args.kernel_length,loss=args.loss)
 
-        if args.restart is not None:
-            multi_layer_keras_model = load_model(args.restart)
+
+        if args.restart:
+            multi_layer_keras_model = load_model(args.weight)
 
         """
         if (len(args.targets) == 1) and (args.targets[0] == "OKSeq"):
@@ -317,6 +347,14 @@ if __name__ == "__main__":
             print(sum(y_train == 0), sum(y_train != 0))
             if type(selp) == float:
                 sel = y_train[::, 0] != 0
+                #sel = y_train[::, 0] > 0.2
+                """
+                if sum(sel)/len(sel) > selp:
+                    th = np.percentile(sel,100-100*selp)
+                    print(th)
+                    sel = y_train[::, 0] > th
+                """
+                print("Non zero %i , Total %i, selected %i"%(sum(sel),len(sel),int(selp*sum(sel))))
                 sel[np.random.randint(0, len(sel-1), int(selp*sum(sel)))] = True
             else:
 
@@ -345,18 +383,33 @@ if __name__ == "__main__":
     ###################################
     # predict
 
-    if args.listfile == [] or args.roadmap:
-        lcell = ["K562", "Hela", "GM"]
-        if args.cell is not None and args.weight is not None:
-            lcell = [args.cell]
-        for cellp in lcell:
-            namep = "/home/jarbona/repli1D/data/mlformat_whole_sig_%s_dec2.csv" % cellp
-            namep = "/home/jarbona/repli1D/data/mlformat_whole_sig_standard%s_nn.csv" % cellp
-            wig=True
-            if args.roadmap:
-                namep = "/home/jarbona/repli1D/data/roadmap_%s_nn.csv" % cellp
-                wig=False
-            print("Reading", namep)
+    if args.listfile == [] or args.roadmap or ( len(args.predict_files) != 0):
+
+        to_pred = []
+        if len(args.predict_files) == 0:
+            lcell = ["K562", "Hela", "GM"]
+            if args.cell is not None and args.weight is not None:
+                lcell = [args.cell]
+            for cellp in lcell:
+                namep = "/home/jarbona/repli1D/data/mlformat_whole_sig_%s_dec2.csv" % cellp
+                namep = "/home/jarbona/repli1D/data/mlformat_whole_sig_standard%s_nn.csv" % cellp
+                wig=True
+                if args.roadmap:
+                    namep = "/home/jarbona/repli1D/data/roadmap_%s_nn.csv" % cellp
+                    wig=False
+            to_pred.append(namep)
+        else:
+            to_pred = args.predict_files
+
+        if args.wig is not None:
+            if args.wig == 1:
+                wig = True
+            else:
+                wig = False
+
+        for namep in to_pred:
+            cellp = namep.split("_")[-1][:-4]
+            print("Reading %s, cell %s"%(namep,cellp))
             df, yinit, notnan = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,wig=wig)
             X, y = transform_seq(df, yinit, 1, window)
@@ -397,7 +450,7 @@ if __name__ == "__main__":
                 if target == "OKSeq":
                     XC["signalValue"] = XC["signalValue"] * 2-1
             # XC.to_csv("nn_hela_fk.csv",index=False,sep="\t")
-                if target == "initiation":
+                if target in ["initiation","Init"]:
                     namew = namep.split("/")[-1][:-4]
                     ns = rootnn+"/nn_%s.csv" % (namew)
                     s = 0
@@ -405,7 +458,8 @@ if __name__ == "__main__":
                         s += (y1-y2)**2
                     print("Average delta", s/len(yinit))
                 else:
-                    print("Not implemented")
+                    ns = rootnn+"/nn_%s_%s.csv" % (namew,target)
+                    #print("Not implemented")
                     #ns = rootnn+"/nn_%s_%s_from_%s.csv" % (cellp, target, cell)
 
                 print("Saving to", ns)

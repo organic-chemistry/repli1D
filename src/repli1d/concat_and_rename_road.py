@@ -14,8 +14,14 @@ args = parser.parse_args()
 
 data = []
 for ifile,file in enumerate(glob.glob(args.root+"*.csv")):
-    name = file.split("/")[-1].split(".")[0].split("_")[1]
-    name = name.replace("K","k")[:-2]
+    if "input_road" in file:
+        continue
+    if "H2A.Z" in file:
+        name = "H2az"
+    else:
+        name = file.split("/")[-1].split(".")[0].split("_")[1]
+        name = name.replace("K", "k")[:-2]
+
     if ifile == 0:
         data = pd.read_csv(file,sep="\t")
         data[name] = data["signalValue"]

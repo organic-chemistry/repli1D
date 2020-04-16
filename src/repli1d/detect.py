@@ -4,6 +4,8 @@
 from repli1d.analyse_RFD import detect_peaks
 import argparse
 import pickle
+import numpy as np
+import pandas as pd
 
 
 parser = argparse.ArgumentParser()
@@ -48,6 +50,11 @@ for chrom, length in enumerate(chromlength, 1):
                              exp_factor=exp_factor,
                              fsmooth=args.smoothpeak,
                              percentile=percentile, cell=cell,cellMRT=args.cellMRT,cellRFD=args.cellRFD,recomp=args.recomp,dec=args.dec)[1])
+
+data = np.concatenate(data)
+data[data==0] = np.nan
+data[~np.isnan(data)] = 1
+pd.DataFrame({"signalValue":data}).to_csv("ARS.csv",index=False)
 
 with open(args.name, "wb") as f:
     pickle.dump(data, f)

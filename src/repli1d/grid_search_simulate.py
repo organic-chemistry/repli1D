@@ -50,12 +50,14 @@ if args.compMRT is not None:
 if args.compRFD is not None:
     compRFD = args.compRFD
 
-marks = ['DNaseI', 'ORC2',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
+
+marks = ["Bubble"]
+marks += ['DNaseI', 'ORC2',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
          'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac',  'H3k9me3', 'H4k20me1', 'H3k9me1']
 
-marks += ["SNS"]
+marks = ["SNS"]
 
-#marks = ["DNaseI"]
+marks = ["DNaseI"]
 
 
 if args.wig:
@@ -117,6 +119,7 @@ for mark in marks:
         continue
     for kon in [5e-7]:
         for ndiff in [30, 45, 60, 75, 90, 105, 120]:
+            #ndiff = 60
             for random_activation in [0, 0.05, 0.1, 0.2]:
                 for dori in [5, 15, 30]:
 
@@ -131,14 +134,25 @@ for mark in marks:
 
                     if not os.path.exists(filename + "/global_corre.csv"):
                         print(filename)
-                        commands = ["python src/repli1d/detect_and_simulate.py --input --visu "
-                                    "--signal %s --ndiff %.3f --dori %i --ch 1 "
-                                    "--name %s/ --resolution 5 --resolutionpol 5"
-                                    " --nsim 200  --wholecell --kon 5e-7 --save"
-                                    " --experimental --n_jobs 8 --noise %.2f --only_one --cell Helas3" % (mark, ndiff/110, dori, filename, random_activation)]
+                        if cell in ["HeLaS3","Hela","K562"]:
+                            csa=cell
+
+                            bgcmd = "python src/repli1d/detect_and_simulate.py --input --visu "
+                                        "--signal %s --ndiff %.3f --dori %i --ch 1 "
+                                        "--name %s/ --resolution 5 --resolutionpol 5"
+                                        " --nsim 200  --wholecell --kon 4e-6 --save --cutholes 1500"
+                                        " --experimental --n_jobs 8 --noise %.2f --only_one " % (mark, ndiff/110, dori, filename, random_activation)
+                            if cell in ["HeLaS3","Hela","Helas3"]:
+                                csa = "Hela"
+
+                            commands = [ bgcmd + "--cell %s"%csa]
+                            if ("GM" in cell) or ("Gm" in cell):
+
+                                commands = [ bgcmd + "--cell Gm12878 --comp GM12878 --cellseq GM06990" ]
 
                         for command in commands:
                             print(command)
+                            exit()
                             os.system(command)
 
                     MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)

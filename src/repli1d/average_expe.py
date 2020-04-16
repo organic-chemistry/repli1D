@@ -24,6 +24,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--file', type=str, default=None)
     parser.add_argument('--dir', type=str, default=None)
+    parser.add_argument('--extra', type=str, default="")
     parser.add_argument('--dirs', type=str, default=None)
 
     args = parser.parse_args()
@@ -33,13 +34,17 @@ if __name__ == "__main__":
         dirs = glob.glob(args.dirs + "/*")
     else:
         dirs = [args.dir]
+    print(dirs)
     for dir in dirs:
-        fich = dir + "/global_scores.csv"
+        extra = args.extra
+        fich = dir + "/%sglobal_scores.csv" % extra
+        print("HCH",fich)
         if os.path.exists(fich):
             data = pd.read_csv(fich)
             data["MRTp"] = [float(d.split(",")[0][1:]) for d in data["MRTp"]]
             data["RFDp"] = [float(d.split(",")[0][1:]) for d in data["RFDp"]]
             data["Cumulstd"] = data["MRTstd"] + data["RFDstd"]
+            data["Cumulp"] = data["MRTp"] + data["RFDp"]
 
         else:
             continue
@@ -58,7 +63,7 @@ if __name__ == "__main__":
         SingleFiber = ["Fiber200_percent_0_Forks","Fiber200_percent_1_Forks",
                        "Fiber200_percent_2_Forks","Fiber200_percent_3_Forks",
                        "Fiber200_percent_4_Forks ",	"Nforkperfibrwithfork","codire"]
-        for k in ["MRTp", "RFDp", "RepTime", "MRTstd", "RFDstd", "Cumulstd"] + SingleFiber:
+        for k in ["MRTp", "RFDp", "RepTime", "MRTstd", "RFDstd", "Cumulstd","Cumulp"] + SingleFiber:
             if k in data.columns:
                 sd[k] = data.mean()[k]
 
@@ -79,7 +84,7 @@ if __name__ == "__main__":
             print("Changing name")
 
         # Compute deltas:
-        strain = pd.read_csv(dir + "/global_profiles.csv", sep=",")
+        strain = pd.read_csv(dir + "/%sglobal_profiles.csv"%extra, sep=",")
 
         Exp = strain.RFDe
         Sim = strain.RFDs
@@ -91,7 +96,7 @@ if __name__ == "__main__":
         D.append(sd)
 
     D = pd.DataFrame(D)
-    D = D.sort_values("Cumulstd", ascending=True)
+    D = D.sort_values("Cumulp", ascending=False)
     write = args.dirs
     if args.dir is not None:
         write = args.dir

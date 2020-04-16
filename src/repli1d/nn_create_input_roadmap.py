@@ -23,6 +23,9 @@ def load_signals_and_transform_to_ml_format(peak,file, strain, norm=False,roadma
     """
     v = []
     marks = ["H3k4me1",	"H3k4me3",	"H3k9me3",	"H3k27me3",	"H3k36me3"]
+    marks +=  ["H2az","H3k79me2","H3k9ac","H3k4me2"]
+    marks += ["H3k27ac", "H4k20me1"]
+
     Data = pd.read_csv(file,sep="\t")
 
     for c in marks:
@@ -44,14 +47,21 @@ def load_signals_and_transform_to_ml_format(peak,file, strain, norm=False,roadma
 if __name__ == "__main__":
     root = "/home/jarbona/repli1D/data/roadmap_"
 
-
     df, X, Pos = load_signals_and_transform_to_ml_format(file="/mnt/data/data/roadmap/K562/input_road.csv",
         peak="/home/jarbona/repli1D/results/K562_RFD_to_init/nn_global_profiles.csv", strain="K562", norm=True)
     df.to_csv(root+"K562_nn.csv", index=False)
 
     df, X, Pos = load_signals_and_transform_to_ml_format(file="/mnt/data/data/roadmap/IMR90/input_road.csv",
-        peak="/home/jarbona/repli1D/results/K562_RFD_to_init/nn_global_profiles.csv", strain="IMR90", norm=True)
+        peak="/home/jarbona/repli1D/results/IMR90_RFD_to_init/nn_global_profiles.csv", strain="IMR90", norm=True)
     df.to_csv(root+"IMR90_nn.csv", index=False)
+
+    df, X, Pos = load_signals_and_transform_to_ml_format(file="/mnt/data/data/roadmap/Hela/input_road.csv",
+        peak="/home/jarbona/repli1D/results/Hela_RFD_to_init/nn_global_profiles.csv", strain="Hela", norm=True)
+    df.to_csv(root+"Hela_nn.csv", index=False)
+
+    df, X, Pos = load_signals_and_transform_to_ml_format(file="/mnt/data/data/roadmap/GM12878/input_road.csv",
+        peak="/home/jarbona/repli1D/results/GM_RFD_to_init/nn_global_profiles.csv", strain="GM12878", norm=True)
+    df.to_csv(root+"GM_nn.csv", index=False)
 """
     df, X, Pos = load_signals_and_transform_to_ml_format(
         peak="/home/jarbona/repli1D/results/GM_RFD_to_init/nn_global_profiles.csv", strain="Gm12878", norm=False)

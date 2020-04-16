@@ -8,8 +8,11 @@ import pandas as pd
 import numpy as np
 import glob
 import pprint
-import pyBigWig
-import gffutils
+try:
+    import pyBigWig
+    import gffutils
+except:
+    print("You may need to install pyBigWig")
 pp = pprint.PrettyPrinter(indent=2)
 
 
@@ -56,13 +59,14 @@ def is_available(strain, experiment):
     avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2",
                  "RNASeq", "ExpGenes", "Faire", "Meth", "Meth450",
                  "Constant", "OKSeqF", "OKSeqR", "OKSeqS", "CNV", "NFR",
-                 "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m"]
+                 "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1"]
     marks = ['H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
     marks_bw = [m + "wig" for m in marks]
     Prot = ["Rad21"]
 
+    #print("La")
 
     if strain in ["Yeast-MCM"]:
         lroot = ROOT+"/external/"+strain + "/"
@@ -140,6 +144,31 @@ def is_available(strain, experiment):
             files = glob.glob(root + strain + ".bedgraph")
             files.sort()
             return True, files, 1
+    #print("IRCRRRRRRRRRRRRRRRRRRRR")
+    if experiment == "ORC1":
+        #print("LA")
+        root = ROOT + "/external/ORC1/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.bed")
+        #print(extract)
+        cells = [e.split("/")[-1].split(".bed")[0] for e in extract]
+        cells.sort()
+        if strain in cells:
+            files = glob.glob(root + strain + ".bed")
+            files.sort()
+            return True, files, 1
+
+    if experiment == "Ini":
+        root = ROOT + "/external/ini/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.csv")
+        # print(extract)
+        cells = [e.split("/")[-1].split(".csv")[0] for e in extract]
+        cells.sort()
+        if strain in cells:
+            files = glob.glob(root + strain + ".csv")
+            files.sort()
+            return True, files, 1
 
     if experiment == "GC":
         root = ROOT + "/external//1ColProfiles/*1kbp*"  # chr1_gc_native_w1kbp.dat
@@ -149,9 +178,14 @@ def is_available(strain, experiment):
     if experiment == "SNS":
         root = ROOT + "/external/SNS/"
         # root = ROOT + "/external/1kb_profiles//"
-        extract = glob.glob(root + "*.bed")
-        print(extract, root)
-        if strain not in ["K562"]:
+        extract = []
+        if strain in ["K562"]:
+            extract = glob.glob(root + "*.bed")
+        elif strain in ["HeLaS3","Hela","HeLa"]:
+            extract=glob.glob(root + "*.csv")
+        #print("Strain",strain)
+        #print(extract, root)
+        if strain not in ["K562","HeLaS3"]:
             print("Wrong strain")
             print("Only K562")
             return False, [], 1
@@ -173,11 +207,12 @@ def is_available(strain, experiment):
             print("Wrong strain")
             print("Only", "HeLa", "HeLaS3")
             raise
+        """
         root = ROOT + "/external/SNS/"
         # root = ROOT + "/external/1kb_profiles//"
         extract = glob.glob(root + "*.bed")
         print(extract, root)
-        return True, extract, 1
+        return True, extract, 1"""
 
     if  "G4" in experiment:
         root = ROOT + "/external/G4/"
@@ -313,42 +348,70 @@ def is_available(strain, experiment):
 
     if experiment in marks:
         root = ROOT + "/external/histones//"
+
+        if  experiment == "H2az" and strain == "IMR90":
+            experiment = "H2A.Z"
         extract = glob.glob(root + "/*%s*.broadPeak" % experiment)
+        #print(extract)
+        if strain not in ["IMR90"]:
+            cells = [e.split("/")[-1].replace("wgEncodeBroadHistone",
+                                              "").replace("Std", "").replace("%sPk.broadPeak" % experiment, "") for e in extract]
+            # print(extract,cells)
+            if strain in cells:
+                files = glob.glob(root + "/wgEncodeBroadHistone%s%sStdPk.broadPeak" %
+                                  (strain, experiment))
+                files += glob.glob(root + "/wgEncodeBroadHistone%s%sPk.broadPeak" %
+                                   (strain, experiment))
 
-        cells = [e.split("/")[-1].replace("wgEncodeBroadHistone",
-                                          "").replace("Std", "").replace("%sPk.broadPeak" % experiment, "") for e in extract]
-        # print(extract,cells)
-        if strain in cells:
-            files = glob.glob(root + "/wgEncodeBroadHistone%s%sStdPk.broadPeak" %
-                              (strain, experiment))
-            files += glob.glob(root + "/wgEncodeBroadHistone%s%sPk.broadPeak" %
-                               (strain, experiment))
+                return True, files, 1
+        else:
+            cells = [e.split("/")[-1].split("-")[0] for e in
+                     extract]
+            # print(extract,cells)
 
-            return True, files, 1
+
+
+            print("Larr")
+
+            if strain in cells:
+                files = glob.glob(root + "/%s-%s.broadPeak" %
+                                  (strain, experiment))
+
+
+                return True, files, 1
 
     if experiment[:-3] in marks:
         root = ROOT + "/external/histones//"
-        extract = glob.glob(root + "/*%s*.bigWig" % experiment[:-3])
-        # print(extract)
-        cells = []
-        for c in extract:
-            if "StdSig" in c:
-                cells.append(c.split("/")[-1].replace("wgEncodeBroadHistone",
-                                                      "").replace("%sStdSig.bigWig" % experiment[:-3], ""))
-            else:
-                cells.append(c.split("/")[-1].replace("wgEncodeBroadHistone",
-                                                      "").replace("%sSig.bigWig" % experiment[:-3], ""))
+        if strain not in ["IMR90"]:
+            extract = glob.glob(root + "/*%s*.bigWig" % experiment[:-3])
+            # print(extract)
+            cells = []
+            for c in extract:
+                if "StdSig" in c:
+                    cells.append(c.split("/")[-1].replace("wgEncodeBroadHistone",
+                                                          "").replace("%sStdSig.bigWig" % experiment[:-3], ""))
+                else:
+                    cells.append(c.split("/")[-1].replace("wgEncodeBroadHistone",
+                                                          "").replace("%sSig.bigWig" % experiment[:-3], ""))
 
-        # print(extract, cells)
-        if strain in cells:
-            files = glob.glob(root + "/wgEncodeBroadHistone%s%sStdSig.bigWig" %
-                              (strain, experiment[:-3]))
-            if files == []:
-                #print("Warning using Sig")
-                files = glob.glob(root + "/wgEncodeBroadHistone%s%sSig.bigWig" %
+            # print(extract, cells)
+            if strain in cells:
+                files = glob.glob(root + "/wgEncodeBroadHistone%s%sStdSig.bigWig" %
                                   (strain, experiment[:-3]))
-            # print(files)
-            return True, files, 1
+                if files == []:
+                    #print("Warning using Sig")
+                    files = glob.glob(root + "/wgEncodeBroadHistone%s%sSig.bigWig" %
+                                      (strain, experiment[:-3]))
+                # print(files)
+                return True, files, 1
+        else:
+            exp = experiment[:-3]
+            exp = exp.replace("k","K") # from roadmap epi
+            extract = glob.glob(root + "/IMR90_%s*wh.csv" % exp)
+            print(extract)
+            cells = []
+
+            return True, extract, 1
 
     print("Available cells")
     pp.pprint(cells)
@@ -403,6 +466,42 @@ def overlap_fraction(start, end, res):
     deltas = (v[1:] - v[:-1]) / res
     indexes = np.array(v[:-1] / res, dtype=np.int)
     return deltas, indexes
+
+
+
+def create_index_human(strain,exp,resolution=10,root="./"):
+    chromlength = [248956422, 242193529, 198295559, 190214555, 181538259,
+                   170805979, 159345973, 145138636, 138394717,
+                   133797422, 135086622, 133275309, 114364328, 107043718,
+                   101991189, 90338345, 83257441,
+                   80373285, 58617616, 64444167, 46709983, 50818468]
+    #chromlength = [248956422]
+    data = {iexp:[] for iexp in exp}
+    for chrom, length in enumerate(chromlength, 1):
+        for iexp in exp:
+            data[iexp].append(replication_data(strain, iexp,
+                                     chromosome=chrom, start=0,
+                                     end=length // 1000,
+                                     resolution=resolution)[1])
+            if iexp == "OKSeq":
+                data[iexp][-1] /= resolution
+
+    ran = [np.arange(len(dat)) * 1000 * resolution for dat in data[exp[0]]]
+    index = {"chrom": np.concatenate([["chr%i"%i]*len(xran) for i,xran in enumerate(ran,1)]),
+             "chromStart":np.concatenate(ran),
+             "chromEnd":np.concatenate(ran)}
+
+    print(root)
+    os.makedirs(root,exist_ok=True)
+    pd.DataFrame(index).to_csv(root+"/index.csv",index=False)
+
+    for iexp in exp:
+        pd.DataFrame({"signalValue":np.concatenate(data[iexp])}).to_csv(root + "/%s.csv" % iexp, index=False)
+
+
+
+
+
 
 
 def whole_genome(**kwargs):
@@ -587,14 +686,25 @@ def replication_data(strain, experiment, chromosome,
             chro = str(chromosome)
             strain = pd.read_csv(files[0], sep="\t", names=index)
 
+            if "chrI" in set(strain["chrom"]):
+                print("Yeast")
+                # print(cell.chroms())
+                from repli1d.tools import int_to_roman
+                # print(int(chromosome))
+                chro = int_to_roman(int(chromosome))
+
+            print(strain)
             data = strain[(strain.chrom == "chr%s" % chro) & (
                 strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
-
+            #print("La")
+            #print(data)
             if oData:
                 return data
 
             x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
             y = np.array(data.signalValue)
+            y = np.ones_like(x)
+            #print(y)
             return re_sample(x, y, start, end, resolution)
 
         if filename.endswith("tagAlign"):
@@ -636,7 +746,10 @@ def replication_data(strain, experiment, chromosome,
                 return data
 
             x = np.array(data.chromStart / 2 + data.chromEnd / 2) / f  # kb
-
+            if signame == "signalValue" and signame not in data.columns:
+                if "signal" in data.columns:
+                    signame = "signal"
+                    print("Warning changing signalValue to signal")
             y = np.array(data[signame])
             # print(y)
             return re_sample(x, y, start, end, resolution)
@@ -667,7 +780,7 @@ def replication_data(strain, experiment, chromosome,
         data = strain[(strain.chrom == "chr%s" % chro) & (
             strain.chromStart > 1000*start) & (strain.chromStart < 1000*end)]
 
-        print(data)
+        #print(data)
         x = np.array(data.chromStart / 2 + data.chromEnd / 2)  / 1000  # kb
         y = np.array(data.signal)
 
@@ -777,6 +890,24 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.signalValue)
 
+    if experiment == "Ini":
+        filename = files[0]
+        index = ["chrom", "chromStart", "chromEnd"]
+        chro = str(chromosome)
+        strain = pd.read_csv(files[0], sep=",", names=index)
+
+        data = strain[(strain.chrom == "%s" % chro) & (
+                strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+        if oData:
+            data.chromStart /= 1000
+            data.chromEnd /= 1000
+            return data
+
+        x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+        y = np.ones_like(x)
+        return re_sample(x, y, start, end, resolution)
+
     if experiment == "HMM":
         filename = files[0]
         index = ["chrom", "chromStart", "chromEnd", "ClassName", "u1",
@@ -856,7 +987,7 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.signalValue)
 
-    if experiment == "SNS":
+    if experiment == "ORC1":
 
         index = ["chrom", "chromStart", "chromEnd"]
         chro = str(chromosome)
@@ -866,11 +997,36 @@ def replication_data(strain, experiment, chromosome,
         data = strain[(strain.chrom == "chr%s" % chro) & (
             strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
 
-        if oData:
-            return data
-
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.ones_like(x)
+
+    if experiment == "SNS":
+        if strain == "K562":
+            index = ["chrom", "chromStart", "chromEnd"]
+            chro = str(chromosome)
+            print(files)
+            strain = pd.read_csv(files[0], sep="\t", names=index, skiprows=1)
+
+            data = strain[(strain.chrom == "chr%s" % chro) & (
+                strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+            if oData:
+                return data
+
+            x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+            y = np.ones_like(x)
+        else:
+            index = ["chrom", "chromStart", "chromEnd","signalValue"]
+
+            chro = str(chromosome)
+            print(files)
+            strain = pd.read_csv(files[0], sep="\t", names=index, skiprows=1)
+
+            data = strain[(strain.chrom == "chr%s" % chro) & (
+                    strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+            x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+            y = data.signalValue
 
     if experiment == "MCM":
 
@@ -966,7 +1122,22 @@ def replication_data(strain, experiment, chromosome,
         # x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         # y = np.array([1 for _ in range(len(x))])
 
+    if experiment[:-3] in marks and strain == "IMR90":
+
+        strain = pd.read_csv(files[0],sep="\t")
+
+        chro = str(chromosome)
+        data = strain[(strain.chrom == "chr%s" % chro) & (
+                strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+        if oData:
+            return data
+
+        x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+        y = np.array(data.signalValue)
+        return x,y
     if experiment[:-3] in marks:
+
         cell = pyBigWig.open(files[0])
         if end is None:
             end = cell.chroms()['chr%s' % str(chromosome)]
@@ -982,9 +1153,12 @@ def replication_data(strain, experiment, chromosome,
 
             end = int(true_end)
         # print("Problem of size", true_end, end, chromosome)
-
+        #print(chromosome)
+        #print(cell.chroms())
+        #print(files[0])
+        #print(start,end)
         v = [np.nan if s is None else s for s in cell.stats(
-            "chr%s" % str(chromosome), start * 1000, end * 1000, nBins=int(end - start) // (resolution))]
+            "chr%s" % str(chromosome), int(start * 1000), int(end * 1000), nBins=int(int(end - start) // (resolution)))]
         if pad:
             print("padding...", int(pad/resolution)-len(v))
 

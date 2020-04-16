@@ -317,7 +317,7 @@ def compare(simu, signal, cell, res, ch, start, end, trim=0.05, return_exp=False
         exp_signal = smooth(exp_signal, smoothf)
     if simu is not None:
         ret = [stats.pearsonr(simu[mask_exp], exp_signal[mask_exp]),
-               np.std(simu[mask_exp] - exp_signal[mask_exp])]
+               np.mean((simu[mask_exp] - exp_signal[mask_exp])**2)**0.5]
     else:
         ret = [None,None]
     if return_exp:
@@ -425,7 +425,7 @@ def sm(ser, sc): return np.array(pd.Series(ser).rolling(
 
 def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile=85, cell="K562",
                  cellMRT=None, cellRFD=None, nanpolate=False, fsmooth=None, gsmooth=5,
-                 recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq"):
+                 recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",rfd_only=False):
 
     rpol = resolution_polarity
 
@@ -441,8 +441,14 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
             resolution = 1
         else:
             resolution = 10
-        x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
-                                          start=start, end=end, resolution=resolution, raw=False)
+
+        if not rfd_only:
+            x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
+                                              start=start, end=end, resolution=resolution, raw=False)
+        else:
+            pol_expc = pol_exp.copy()
+            pol_expc[np.isnan(pol_expc)] = 0
+            mrt_exp = np.array(pd.Series(np.cumsum(pol_expc)).rolling(10000, min_periods=1, center=True).apply(lambda x: np.mean(x<x[len(x)//2])))[::2]
 
         if nanpolate:
             pol_exp = nan_polate(pol_exp)

@@ -7,19 +7,21 @@ import numpy as np
 from repli1d.analyse_RFD import propagate_n_false
 
 
-def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=False):
+def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=False,resolution=5):
 
-    resolution = 5
     redo = False
 
     if norm:
-        smark = whole_genome(strain=strain, experiment="CNV",
-                             resolution=resolution, raw=False, oData=False,
-                             bp=True, bpc=False, filename=None, redo=redo, root="/home/jarbona/repli1D/")
-        smark = np.concatenate(smark, axis=0)
-        smark[smark == 0] = 4
-        smark[np.isnan(smark)] = 4
-        CNV = smark
+        try:
+            smark = whole_genome(strain=strain, experiment="CNV",
+                                 resolution=resolution, raw=False, oData=False,
+                                 bp=True, bpc=False, filename=None, redo=redo, root="/home/jarbona/repli1D/")
+            smark = np.concatenate(smark, axis=0)
+            smark[smark == 0] = 4
+            smark[np.isnan(smark)] = 4
+            CNV = smark
+        except:
+            CNV = 4
 
     v = []
     Data = {}
@@ -30,6 +32,8 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
     marks += ["OKSeq"]
     marks += ["Meth"]
     marks += ["Meth450"]
+    marks += ["MRT","RFD"]
+
     for mark in marks:
 
         straint = strain
@@ -54,6 +58,8 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
         else:
             smark /= 4
 
+        #if mark in ["MRT","RFD"]:
+            #mark += "e"
         Data[mark] = smark
 
     try:
@@ -74,6 +80,8 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
         data = pd.read_csv(peak, "\t")
         data["signalValue"][data["signalValue"] < 0.001] = 0
         Data["initiation"] = norm2(data["signalValue"])[0]
+
+
         print(len(Data["OKSeq"]), len(data))
 
         X = []
@@ -105,7 +113,7 @@ if __name__ == "__main__":
     print("saving", root+"K562_dec2_with_coord.csv")
     XC.to_csv(root+"K562_dec2_with_coord.csv", index=False, sep="\t")
 """
-
+    """
     df, X, Pos = load_signals_and_transform_to_ml_format(
         peak="/home/jarbona/repli1D/results/K562_RFD_to_init/nn_global_profiles.csv", strain="K562", norm=True)
     df.to_csv(root+"K562_nn.csv", index=False)
@@ -117,3 +125,30 @@ if __name__ == "__main__":
     df, X, Pos = load_signals_and_transform_to_ml_format(
         peak="/home/jarbona/repli1D/results/Hela_RFD_to_init/nn_global_profiles.csv", strain="Helas3", norm=True)
     df.to_csv(root+"Hela_nn.csv", index=False)
+    """
+
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--peak', type=str, default=None)
+    parser.add_argument('--outfile', type=str, default=None)
+    parser.add_argument('--cell', type=str, default=None)
+    parser.add_argument('--resolution', type=int, default=5)
+
+    args = parser.parse_args()
+
+    if args.cell == "Hela":
+        cell = "Helas3"
+    if args.cell == "GM":
+        cell = "Gm12878"
+    if args.cell == "K562":
+        cell = "K562"
+
+
+
+
+    df, X, Pos = load_signals_and_transform_to_ml_format(
+        peak=args.peak, strain=cell, norm=True,resolution=args.resolution)
+    df.to_csv(args.outfile, index=False)
