@@ -3,7 +3,13 @@ repli1D
 =======
 
 
-Add a short description here!
+Install
+===========
+
+git@github.com:organic-chemistry/repli1D.git
+cd  repli1D
+conda create --name repli --file spec-file.txt
+conda activate repli
 
 
 Description
