@@ -6,14 +6,14 @@ repli1D
 Install
 ===========
 
-git@github.com:organic-chemistry/repli1D.git
-
+```
+git clone git@github.com:organic-chemistry/repli1D.git
 cd  repli1D
-
 conda create --name repli --file spec-file.txt
-
 conda activate repli
+python setup.py develop
 
+```
 
 Description
 ===========
