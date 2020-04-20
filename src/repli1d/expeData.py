@@ -496,7 +496,9 @@ def create_index_human(strain,exp,resolution=10,root="./"):
     pd.DataFrame(index).to_csv(root+"/index.csv",index=False)
 
     for iexp in exp:
-        pd.DataFrame({"signalValue":np.concatenate(data[iexp])}).to_csv(root + "/%s.csv" % iexp, index=False)
+        index.update({"signalValue":np.concatenate(data[iexp])})
+        Df = pd.DataFrame(index)
+        Df.to_csv(root + "/%s.csv" % iexp, index=False)
 
 
 

@@ -2,34 +2,55 @@ import numpy as np
 import copy
 #np.random.seed(0)
 nc = 0
+import pylab
 
 
-def generate_newp_cascade(pos, proba, avail,actual_pos=[]):
+def comupute_enhanced(proba, actual_pos,cascade={}):
+
+    #assert()
+
+    infl = cascade["infl"] #,50)
+    amount = cascade["amount"] #,4)
+    down = cascade["down"]#,10)
+    damount = cascade["damount"]#,1 / 10000.)
+
+    cproba = np.zeros_like(proba) + 1
+    for position, direction, init_position in actual_pos:
+        # print(position,direction,cproba,max(position-infl),position)
+        if direction == "L":
+            cproba[position:min(position + infl, len(cproba) - 1)] *= amount
+        if direction == "R":
+            cproba[max(position - infl, 0):position] *= amount
+
+        if direction == "L":
+            cproba[position:min(position + down, len(cproba) - 1)] *= damount
+        if direction == "R":
+            cproba[max(position - down, 0):position] *= damount
+
+    return cproba
+
+
+def generate_newp_cascade(pos, proba, avail,actual_pos=[],cascade={}):
     #print("cascade",actual_pos)
     newp = []
     finished = False
 
-    def comupute_enhanced(proba,actual_pos,infl=200,amount=4,down=0,damount=0):
-        cproba = np.zeros_like(proba) + 1
-        for position, direction, init_position in actual_pos:
-            #print(position,direction,cproba,max(position-infl),position)
-            if direction == "L":
-                cproba[position:min(position+infl,len(cproba)-1)] *= amount
-            if direction == "R":
-                cproba[max(position - infl,0):position] *= amount
 
-            if direction == "L":
-                cproba[position:min(position+down,len(cproba)-1)] *= damount
-            if direction == "R":
-                cproba[max(position - down,0):position] *= damount
-
-        return cproba
-
-    cproba = comupute_enhanced(proba, actual_pos, infl=50, amount=4,down=10,damount=1/10000)
+    cproba = comupute_enhanced(proba, actual_pos,cascade)
     filter = proba != 0
 
     npossible = np.sum(filter)
 
+    """ 
+    f = pylab.figure()
+    f.add_subplot(211)
+    pylab.plot(cproba)
+    f.add_subplot(212)
+    pylab.plot(proba * cproba)
+    pylab.plot(proba)
+
+    pylab.show()
+    """
     if npossible > avail:
         newp = list(np.random.choice(pos[filter], size=avail,replace=False,
                                 p=proba[filter] * cproba[filter] / (np.sum(cproba[filter] * proba[filter]))))
@@ -46,13 +67,13 @@ def generate_newp_cascade(pos, proba, avail,actual_pos=[]):
     return pos, proba, newp, finished
 
 
-def generate_newp_no_corre(pos, proba, avail,actual_pos=[],cascade=False,previous =[]):
+def generate_newp_no_corre(pos, proba, avail,actual_pos=[],cascade={},previous =[]):
 
     #Return a list of #avail site
     #Modify proba and previous
-
-    if cascade:
-        pos, proba, newp, finished = generate_newp_cascade(pos, proba, avail, actual_pos=actual_pos)
+    #print(cascade)
+    if cascade != {} :
+        pos, proba, newp, finished = generate_newp_cascade(pos, proba, avail, actual_pos=actual_pos,cascade=cascade)
         return pos, proba, newp, finished,[]
     newp = []
     finished = False
@@ -478,7 +499,7 @@ class Chrom:
 
 def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
              single_mol_exp=False, single_mol_exp_sub_sample=50,
-             pulse_size=2,cascade=False,breaks=None,continuous=False,
+             pulse_size=2,cascade={},breaks=None,continuous=False,
              binsize=5,dori=30,list_chrom_ret=False,timespend=[],
              filter_termination=None,introduction_time=None):
 
@@ -656,8 +677,6 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
         else:
 
-
-
             nori = np.sum(proba != 0)
 
             if nori != 0 and avail != 0:
@@ -808,7 +827,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                       fork_speed=0.3,
                       single_mol_exp=False, pulse_size=5, it=True,
-                      binsize=5,continuous=False,wholeRFD=False,cascade=False,breaks=None,
+                      binsize=5,continuous=False,wholeRFD=False,cascade={},breaks=None,
                       n_jobs=6,timespend=[],nMRT=6,filter_termination=None,introduction_time=None,wholeMRT=False,return_dict=False):
 
     print("EXperimental")
@@ -940,11 +959,14 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
             MRTp[(MRT > p1) & (MRT <= p2)] += ip/n
         MRTp[MRT == 0] += 1/n
 
+    MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
 
     if return_dict:
-        return {"mean_MRT_normed":MRTp/nsim * n / (n - 1) - 1 / (n - 1),
-                "mean_MRT_time":np.mean(np.array(MRTs), axis=0),
+        return {"mean_MRT_normed":MRT_normed,
+                "mean_MRT_time":np.mean(np.array(MRTs), axis=0) * dt,
+                "hist_MRT":[MRTi * dt for MRTi in MRTs],
                 "mean_RFD":np.mean(np.array(RFDs), axis=0),
+                "hist_RFD":RFDs,
                 "hist_replication_time":np.array(Rep_Time) * dt,
                  "single_mol_exp":single_mol_exp_vs,
                 "position_time_activated_oris":position_time_activated_oris,
