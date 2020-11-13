@@ -32,10 +32,10 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
     marks += ["OKSeq"]
     marks += ["Meth"]
     marks += ["Meth450"]
-    marks += ["MRT","RFD"]
+    marks += ["AT_5","AT_20","AT_30"]
 
     for mark in marks:
-
+        print(mark)
         straint = strain
         if strain == "Gm12878" and mark == "OKSeq":
             straint = "GM06990"

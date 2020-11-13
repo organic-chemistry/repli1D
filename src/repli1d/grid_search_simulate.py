@@ -29,6 +29,8 @@ parser.add_argument('--array', type=int, default=None)
 parser.add_argument('--noise', type=float, default=.1)
 parser.add_argument('--compMRT', type=str, default=None)
 parser.add_argument('--compRFD', type=str, default=None)
+parser.add_argument('--compRFD', type=str, default=None)
+parser.add_argument('--reverse_profile',  action="store_true")
 
 
 args = parser.parse_args()
@@ -51,13 +53,20 @@ if args.compRFD is not None:
     compRFD = args.compRFD
 
 
-marks = ["Bubble"]
+if cell =="GM12878":
+    marks = ["results//nn_GM_from_None.csv"]
+else:
+    marks = ["results//nn_%s_from_None.csv" %(cell)]
+
+marks += ["RNA_seq"]
+
+marks += ["Bubble"]
 marks += ['DNaseI', 'ORC2',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
          'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac',  'H3k9me3', 'H4k20me1', 'H3k9me1']
 
-marks = ["SNS"]
+marks += ["SNS"]
 
-marks = ["DNaseI"]
+#marks = ["DNaseI"]
 
 
 if args.wig:
@@ -122,37 +131,52 @@ for mark in marks:
             #ndiff = 60
             for random_activation in [0, 0.05, 0.1, 0.2]:
                 for dori in [5, 15, 30]:
-
+                    if "/" in mark:
+                        mark0 = "Epi_Bigger"
+                    else:
+                        mark0 = mark
                     # simulate
-                    filename = os.path.join(args.root, fl(OrderedDict([["mark", mark],
+                    filename = os.path.join(args.root, fl(OrderedDict([["mark", mark0],
                                                                        ["ndiff", ndiff],
                                                                        ["random_activation",
                                                                            random_activation],
                                                                        ["dori", dori],
                                                                        ["kon", kon]])))
+                    if args.reverse_profile:
+                        add = " reverse_profile"
+                    else:
+                        add = ""
+                    filename += add
                     #filename += ".pick"
 
-                    if not os.path.exists(filename + "/global_corre.csv"):
+                    if not os.path.exists(filename + "/global_corre.csv") or args.redo:
                         print(filename)
-                        if cell in ["HeLaS3","Hela","K562"]:
-                            csa=cell
 
-                            bgcmd = "python src/repli1d/detect_and_simulate.py --input --visu "
-                                        "--signal %s --ndiff %.3f --dori %i --ch 1 "
-                                        "--name %s/ --resolution 5 --resolutionpol 5"
-                                        " --nsim 200  --wholecell --kon 4e-6 --save --cutholes 1500"
-                                        " --experimental --n_jobs 8 --noise %.2f --only_one " % (mark, ndiff/110, dori, filename, random_activation)
+
+                        if args.reverse_profile:
+                            add =" --reverse_profile "
+                        else:
+                            add = ""
+                        bgcmd = ("python src/repli1d/detect_and_simulate.py --input --visu " 
+                                    "--signal %s --ndiff %.3f --dori %i --ch 1 "
+                                    "--name %s/ --resolution 5 --resolutionpol 5"
+                                    " --nsim 200  --wholecell --kon 1e-5 --save --cutholes 1500"
+                                    " --experimental --n_jobs 8 --noise %.2f --only_one " % (mark, ndiff/110, dori, filename, random_activation))
+                        bgcmd += add
+                        if cell in ["HeLaS3","Hela","K562","GM"]:
+                            csa=cell
                             if cell in ["HeLaS3","Hela","Helas3"]:
                                 csa = "Hela"
 
-                            commands = [ bgcmd + "--cell %s"%csa]
-                            if ("GM" in cell) or ("Gm" in cell):
 
-                                commands = [ bgcmd + "--cell Gm12878 --comp GM12878 --cellseq GM06990" ]
+                            commands = [ bgcmd + "--cell %s"%csa]
+                        if ("GM" in cell) or ("Gm" in cell):
+
+                            commands = [ bgcmd + "--cell Gm12878 --comp GM12878 --cellseq GM06990" ]
 
                         for command in commands:
                             print(command)
-                            exit()
+                            #exit()
                             os.system(command)
 
                     MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)

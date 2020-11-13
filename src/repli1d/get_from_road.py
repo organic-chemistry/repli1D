@@ -3,7 +3,7 @@ import subprocess
 
 cell = {"K562":"E123",
         "GM12878" :  "E116" ,
-        "Hela"  :   "E115" ,
+        "Hela"  :   "E115" , #Error real is E117
         "IMR90" :   "E017"}
 
 marks = [ "H3K4me1", "H3K4me3", "H3K27me3", "H3K36me3", "H3K9me3"]

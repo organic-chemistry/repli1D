@@ -1,15 +1,18 @@
 import pandas as pd
 
 from keras.models import Sequential
-from keras.layers.core import Dropout, Dense, Activation, Flatten
+from keras.layers.core import Dropout, Dense, Activation, Flatten , Reshape
 from keras.layers.convolutional import Conv2D, MaxPooling2D
+from keras.layers.recurrent import LSTM
+from keras.layers.wrappers import Bidirectional
+
 from keras.callbacks import EarlyStopping, History
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
 from repli1d.analyse_RFD import nan_polate, smooth
 from keras.models import load_model
-
+import numpy as np
 
 def transform_norm(signal):
     s = np.array(signal).copy()
@@ -41,7 +44,7 @@ def transform_norm_meth(signal):
 def load_signal(name,
                 marks=['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac', 'H3k4me2',
                        'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1"],
-                targets=["initiation"], t_norm=None, smm=None,wig=True):
+                targets=["initiation"], t_norm=None, smm=None,wig=True,augment=None):
 
     df = pd.read_csv(name)
     #wig = True
@@ -50,11 +53,13 @@ def load_signal(name,
         df["initiation"] = df["signal"]
 
     if wig:
-        lm = ["DNaseI", "initiation", "Meth", "Meth450", "RFDs", "MRTs", "RFDe", "MRTe"]
+        lm = ["DNaseI", "initiation", "Meth", "Meth450", "RFDs", "MRTs", "RFDe", "MRTe","AT_20"]
         marks0 = [m+"wig" for m in marks if m not in lm]
         for sm in lm:
             if sm in marks:
                 marks0 += [sm]
+
+        assert(len(marks)==len(marks0))
         marks = marks0
 
     if "notnan" in df.columns:
@@ -92,6 +97,12 @@ def load_signal(name,
         elif "MRT" in col:
             if "MRT" in col:
                 df[col] = nan_polate(df[col])
+                if augment == "test":
+                    for asm in [10,50,200]:
+                        df[col+f"_sm_{asm}"] = smooth(nan_polate(df[col]),asm)
+                        df[col + f"_sm_{asm}"] -= np.mean(df[col+f"_sm_{asm}"])
+                        df[col + f"_sm_{asm}"] /= np.std(df[col + f"_sm_{asm}"])
+
             pass
 
         if np.sum(np.isnan(df[col])) !=0:
@@ -105,7 +116,10 @@ def load_signal(name,
     yinit0 = []
     for y, t in zip(yinit, targets):
         if t in ["initiation","Stall"]:
-            yinit0.append(y/np.max(y))
+            trunc = y/ np.max(y) #np.percentile(y,99)
+            #trunc[trunc>1] = 1
+            yinit0.append(trunc)
+
         elif t == "DNaseI":
             yinit0.append(transform_DNase(y))
         elif t == "OKSeq":
@@ -177,6 +191,60 @@ def create_model(X_train, targets, nfilters, kernel_length,loss="binary_crossent
     multi_layer_keras_model.summary()
     return multi_layer_keras_model
 
+def create_model_imp(X_train, targets, nfilters, kernel_length,loss="binary_crossentropy"):
+    inc=1.4
+    print(X_train.shape,targets,nfilters,kernel_length)
+
+    K.set_image_data_format('channels_last')
+    drop=0.01
+    multi_layer_keras_model = Sequential()
+    multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
+        1, kernel_length), input_shape=X_train.shape[1:]))
+    multi_layer_keras_model.add(Activation('relu'))
+    multi_layer_keras_model.add(Dropout(drop))
+    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
+
+
+    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc), kernel_size=(
+        1, kernel_length), input_shape=X_train.shape[1:]))
+    multi_layer_keras_model.add(Activation('relu'))
+    #multi_layer_keras_model.add(Dropout(drop))
+    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
+
+    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**2), kernel_size=(
+        1, kernel_length), input_shape=X_train.shape[1:]))
+    multi_layer_keras_model.add(Activation('relu'))
+    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
+    #multi_layer_keras_model.add(Dropout(drop))
+
+    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**3), kernel_size=(
+        1, kernel_length), input_shape=X_train.shape[1:]))
+    multi_layer_keras_model.add(Activation('relu'))
+    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
+    #multi_layer_keras_model.add(Dropout(drop))
+
+
+    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**4), kernel_size=(
+        1, kernel_length), input_shape=X_train.shape[1:]))
+    multi_layer_keras_model.add(Activation('relu'))
+    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
+    #multi_layer_keras_model.add(Dropout(drop))
+    
+    """
+    multi_layer_keras_model.add(Reshape((-1,nfilters)))
+
+    multi_layer_keras_model.add(Bidirectional(LSTM(nfilters,return_sequences=True)))
+    """
+    multi_layer_keras_model.add(Flatten())
+    #
+    multi_layer_keras_model.add(Dense(len(targets)))
+    multi_layer_keras_model.add(Activation("sigmoid"))
+    # multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
+    #                                loss='mean_squared_logarithmic_error')
+    multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
+                                    loss=loss)
+    multi_layer_keras_model.summary()
+    return multi_layer_keras_model
 
 def train_test_split(chrom, ch_train, ch_test, notnan):
     print(list(ch_train), list(ch_test))
@@ -217,9 +285,16 @@ if __name__ == "__main__":
     parser.add_argument('--sm', type=int, default=None)  # Smoothing exp data
 
     parser.add_argument('--window', type=int, default=51)
+    parser.add_argument('--imp', action="store_true")
+    parser.add_argument('--reduce_lr', action="store_true")
+
+    parser.add_argument('--wig', type=int, default=None)
+
     parser.add_argument('--kernel_length', type=int, default=10)
     parser.add_argument('--weight', type=str, default=None)
     parser.add_argument('--loss', type=str, default="binary_crossentropy")
+    parser.add_argument('--augment', type=str, default="")
+
     parser.add_argument('--marks', nargs='+', type=str, default=[])
     parser.add_argument('--targets', nargs='+', type=str, default=["initiation"])
     parser.add_argument('--listfile', nargs='+', type=str, default=[])
@@ -281,14 +356,16 @@ if __name__ == "__main__":
         for name in listfile:
             print(name)
             df, yinit, notnan = load_signal(
-                name, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm,wig=wig)
+                name, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm,wig=wig,augment=args.augment)
             """
             traint = [1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19]
             valt = [4, 18, 21, 22]
             testt = [5, 20]
             """
-            traint = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+            traint = [3,4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
             valt = [20, 21, 22, 23]
+            valt = [2]
+
             testt = [1]
 
             for v in testt:
@@ -322,8 +399,12 @@ if __name__ == "__main__":
         pass
 
     else:
-        multi_layer_keras_model = create_model(
-            X_train, targets=args.targets, nfilters=args.nfilters, kernel_length=args.kernel_length,loss=args.loss)
+        if not args.imp:
+            multi_layer_keras_model = create_model(
+                X_train, targets=args.targets, nfilters=args.nfilters, kernel_length=args.kernel_length,loss=args.loss)
+        else:
+            multi_layer_keras_model = create_model_imp(
+                X_train, targets=args.targets, nfilters=args.nfilters, kernel_length=args.kernel_length,loss=args.loss)
 
 
         if args.restart:
@@ -347,6 +428,9 @@ if __name__ == "__main__":
             print(sum(y_train == 0), sum(y_train != 0))
             if type(selp) == float:
                 sel = y_train[::, 0] != 0
+                th = np.percentile(y_train[::,0],100-selp)
+                print("sepp,th",selp,th)
+                sel =  y_train[::, 0] > th
                 #sel = y_train[::, 0] > 0.2
                 """
                 if sum(sel)/len(sel) > selp:
@@ -354,18 +438,25 @@ if __name__ == "__main__":
                     print(th)
                     sel = y_train[::, 0] > th
                 """
-                print("Non zero %i , Total %i, selected %i"%(sum(sel),len(sel),int(selp*sum(sel))))
-                sel[np.random.randint(0, len(sel-1), int(selp*sum(sel)))] = True
+                print("top %i , Total %i, selected %i"%(sum(sel),len(sel),int(0.01*selp*len(sel))))
+                sel[np.random.randint(0, len(sel-1), int(0.01*selp*len(sel)))] = True
+                print("Chekc",np.sum(sel))
             else:
 
                 sel = np.ones_like(y_train[::, 0],dtype=np.bool)
             print(np.sum(sel), sel.shape)
             print(X_train.shape, X_train[sel].shape)
             cp = [EarlyStopping(patience=3)]
+            batch_size=128
             if selp == "all" and False:
                 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
-                                              patience=3, min_lr=0.1)
+                                              patience=3, min_lr=0.0001)
                 cp = [reduce_lr]
+            if args.reduce_lr:
+                cp = [EarlyStopping(patience=5),
+                      ReduceLROnPlateau(monitor='val_loss', factor=0.2,
+                                              patience=3, min_lr=0.0001)]
+
 
             history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
                                                                y=y_train[sel],
@@ -374,7 +465,8 @@ if __name__ == "__main__":
                                                                verbose=1,
                                                                callbacks=cp+[History(),
                                                                              ModelCheckpoint(save_best_only=True,
-                                                                                             filepath=rootnn+"/%sweights.{epoch:02d}-{val_loss:.4f}.hdf5" % cell, verbose=1)],
+                                                                                             filepath=rootnn+"/%sweights.{epoch:02d}-{val_loss:.4f}.hdf5" % cell,
+                                                                                             verbose=1)],
                                                                validation_data=(X_test,
                                                                                 y_test))
 
@@ -411,7 +503,7 @@ if __name__ == "__main__":
             cellp = namep.split("_")[-1][:-4]
             print("Reading %s, cell %s"%(namep,cellp))
             df, yinit, notnan = load_signal(
-                namep, marks, targets=args.targets, t_norm=transform_norm,wig=wig)
+                namep, marks, targets=args.targets, t_norm=transform_norm,wig=wig,augment=args.augment)
             X, y = transform_seq(df, yinit, 1, window)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)
@@ -438,7 +530,7 @@ if __name__ == "__main__":
         for namep in args.listfile:
             marks = ["RFDe", "MRTe"]
             df, yinit, notnan = load_signal(
-                namep, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm)
+                namep, marks, targets=args.targets, t_norm=transform_norm, smm=args.sm,augment=args.augment)
             X, y = transform_seq(df, yinit, 1, window)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)

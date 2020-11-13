@@ -448,7 +448,7 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
         else:
             pol_expc = pol_exp.copy()
             pol_expc[np.isnan(pol_expc)] = 0
-            mrt_exp = np.array(pd.Series(np.cumsum(pol_expc)).rolling(10000, min_periods=1, center=True).apply(lambda x: np.mean(x<x[len(x)//2])))[::2]
+            #mrt_exp = np.array(pd.Series(np.cumsum(pol_expc)).rolling(10000, min_periods=1, center=True).apply(lambda x: np.mean(x<x[len(x)//2])))[::2]
 
         if nanpolate:
             pol_exp = nan_polate(pol_exp)
@@ -463,7 +463,8 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
         Smpol = np.copy(pol_exp)
 
         #print(mrt_exp.shape[0]*2, pol_exp.shape, ratio_res,)
-        nmrt = mapboth(mrt_exp, pol_exp, ratio_res, pad=True)
+        if not rfd_only:
+            nmrt = mapboth(mrt_exp, pol_exp, ratio_res, pad=True)
     else:
         strain = pd.read_csv(fich_name, sep=",")
         resolution = 5
@@ -478,11 +479,15 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
         Smpol = np.copy(pol_exp)
         ratio_res = 1
 
-    for delta in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8][::-1]:
+    if not rfd_only:
+        for delta in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8][::-1]:
 
-        c1 = nmrt > delta
-        Smpol[c1] = np.array(sm(Smpol, gsmooth))[c1]
-    Smpol = sm(Smpol, 3)
+            c1 = nmrt > delta
+            Smpol[c1] = np.array(sm(Smpol, gsmooth))[c1]
+
+        Smpol = sm(Smpol, 3)
+    else:
+        Smpol = sm(Smpol, 10)
 
     delta = Smpol[1:] - Smpol[:-1]
     delta -= np.nanmin(delta)
@@ -509,8 +514,8 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
                 if ok0 + 0.05 > ok2:
                     delta[i] = 0  # shifted from one on purpose
                     delta[i+1] = 0
-
-    delta *= mapboth(np.exp(-exp_factor * mrt_exp), delta, ratio_res, pad=True)
+    if not rfd_only:
+        delta *= mapboth(np.exp(-exp_factor * mrt_exp), delta, ratio_res, pad=True)
 
     delta[np.isnan(delta)] = 0
 

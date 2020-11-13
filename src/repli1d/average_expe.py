@@ -26,6 +26,8 @@ if __name__ == "__main__":
     parser.add_argument('--dir', type=str, default=None)
     parser.add_argument('--extra', type=str, default="")
     parser.add_argument('--dirs', type=str, default=None)
+    parser.add_argument('--delta', action="store_true")
+
 
     args = parser.parse_args()
 
@@ -84,15 +86,16 @@ if __name__ == "__main__":
             print("Changing name")
 
         # Compute deltas:
-        strain = pd.read_csv(dir + "/%sglobal_profiles.csv"%extra, sep=",")
+        if args.delta:
+            strain = pd.read_csv(dir + "/%sglobal_profiles.csv"%extra, sep=",")
 
-        Exp = strain.RFDe
-        Sim = strain.RFDs
-        #hist(Exp-Sim, bins=50, histtype="step")
-        th = 1
-        sd["delta_th_1"] = (np.sum(Exp-Sim > th)+np.sum(Exp-Sim < -th))
-        th = 0.5
-        sd["delta_th_0.5"] = (np.sum(Exp-Sim > th)+np.sum(Exp-Sim < -th))
+            Exp = strain.RFDe
+            Sim = strain.RFDs
+            #hist(Exp-Sim, bins=50, histtype="step")
+            th = 1
+            sd["delta_th_1"] = (np.sum(Exp-Sim > th)+np.sum(Exp-Sim < -th))
+            th = 0.5
+            sd["delta_th_0.5"] = (np.sum(Exp-Sim > th)+np.sum(Exp-Sim < -th))
         D.append(sd)
 
     D = pd.DataFrame(D)

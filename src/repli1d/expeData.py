@@ -56,10 +56,10 @@ def is_available_alias(strain, experiment):
 
 def is_available(strain, experiment):
 
-    avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2",
-                 "RNASeq", "ExpGenes", "Faire", "Meth", "Meth450",
+    avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2", "ExpGenes", "Faire", "Meth", "Meth450",
                  "Constant", "OKSeqF", "OKSeqR", "OKSeqS", "CNV", "NFR",
-                 "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1"]
+                 "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1","AT_20","AT_5","AT_30","RHMM","MRTstd",
+                 "RNA_seq"]
     marks = ['H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
@@ -104,6 +104,16 @@ def is_available(strain, experiment):
                 files = glob.glob(root + "/timing_final_W100kb_dx10kb_%s*" % strain)
                 return True, files, 10
 
+    if experiment == "MRTstd":
+
+        root = ROOT + "/external/Sfrac/"
+
+        extract = glob.glob(root + "/*Rep1_chr10.dat")
+        cells = [e.split("_")[-3] for e in extract]
+        if strain in cells:
+            files = glob.glob(root + "/Sfrac_HansenNormDenoised_W100kb_dx10kb_%s*" % strain)
+            return True, files, 10
+
     if experiment == "ExpGenes":
         root = ROOT + "/external/ExpressedGenes/"
         extract = glob.glob(root + "/*ExpressedGenes_zero.txt")
@@ -115,8 +125,8 @@ def is_available(strain, experiment):
 
             return True, files, 10
 
-    if experiment == "RNASeq":
-        root = ROOT + "/Data/RNA_seq/hsap_hg19/10kb_profiles/"
+    if experiment == "RNA_seq":
+        root = ROOT + "external//RNA_seq//"
         # root = ROOT + "/external/1kb_profiles//"
         extract = glob.glob(root + "*Tot")
         # print(extract)
@@ -125,7 +135,7 @@ def is_available(strain, experiment):
         if strain in cells:
             files = glob.glob(root + strain + "_Tot/*")
             files.sort()
-            return True, files, 10
+            return True, files, 1
 
     if experiment == "NFR":
         root = ROOT + "/external/NFR/"
@@ -174,6 +184,10 @@ def is_available(strain, experiment):
         root = ROOT + "/external//1ColProfiles/*1kbp*"  # chr1_gc_native_w1kbp.dat
         extract = glob.glob(root)
         return True, extract, 1
+    if "AT" in experiment:
+        root = ROOT + "/external//AT_hooks/c__%s.csv"%experiment.split("_")[1]  # chr1_gc_native_w1kbp.dat
+        extract = glob.glob(root)
+        return True, extract, 5
 
     if experiment == "SNS":
         root = ROOT + "/external/SNS/"
@@ -247,6 +261,20 @@ def is_available(strain, experiment):
             files.sort()
             # print(files)
             return True, files, 10
+
+    if experiment == "RHMM":
+        root = ROOT + "/external/RHMM/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.bed")
+        #print(extract)
+        cells = [e.split("/")[-1].replace("RHMM.bed", "")
+                 for e in extract]
+        cells.sort()
+        if strain in cells:
+            files = glob.glob(root + "%sRHMM.bed" % strain)
+            files.sort()
+            # print(files)
+            return True, files, 1
 
     if experiment.startswith("OKSeq"):
         root = ROOT + "/Data/UCSC/hsap_hg19//local/Okazaki_Hyrien/1kb_profiles/"
@@ -568,9 +596,6 @@ def replication_data(strain, experiment, chromosome,
         filename = experiment
 
 
-
-
-
     if experiment.endswith("weight"):
         from repli1d.retrieve_marks import norm2
         with open(experiment, "rb") as f:
@@ -730,6 +755,7 @@ def replication_data(strain, experiment, chromosome,
             # print(files[0])
 
             strain = pd.read_csv(files[0], sep="\t")
+            #print(strain.mean())
             tmpl = "chr%s"
             f = 1000
             if "chrom" not in strain.columns:
@@ -753,7 +779,7 @@ def replication_data(strain, experiment, chromosome,
                     signame = "signal"
                     print("Warning changing signalValue to signal")
             y = np.array(data[signame])
-            # print(y)
+            #print(chro,np.mean(y),len(y))
             return re_sample(x, y, start, end, resolution)
 
     # print(files)
@@ -892,6 +918,22 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.signalValue)
 
+    if "AT" in experiment :
+
+        index = ["signalValue"]
+        chro = str(chromosome)
+        #file = [f for f in files if "chr%s_" % chro in f]
+        strain = pd.read_csv(files[0], sep="\t")
+        #print(strain.head())
+
+        data = strain[(strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+        if oData:
+            return data
+
+        x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+        y = np.array(data.signalValue)
+
     if experiment == "Ini":
         filename = files[0]
         index = ["chrom", "chromStart", "chromEnd"]
@@ -910,7 +952,7 @@ def replication_data(strain, experiment, chromosome,
         y = np.ones_like(x)
         return re_sample(x, y, start, end, resolution)
 
-    if experiment == "HMM":
+    if experiment == "HMM" :
         filename = files[0]
         index = ["chrom", "chromStart", "chromEnd", "ClassName", "u1",
                  "u2", "u3", "u4", "color"]
@@ -928,6 +970,48 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.color)
         return re_sample(x, y, start, end, resolution)
+
+    if experiment == "RHMM":
+        filename = files[0]
+        try:
+            index = ["chrom", "chromStart", "chromEnd", "ClassName", "u1",
+                     "u2", "u3", "u4", "color"]
+
+            chro = str(chromosome)
+            strain = pd.read_csv(files[0], sep="\t", names=index)
+            strain["ClassName"] = [int(class_n.split("_")[0]) for class_n in strain.ClassName]
+        except:
+            index = ["chrom", "chromStart", "chromEnd", "ClassName"]
+            chro = str(chromosome)
+            strain = pd.read_csv(files[0], sep="\t", names=index)
+
+            strain["ClassName"] = [int(class_n[1:]) for class_n in strain.ClassName]
+            inac=3
+            trans=6
+            #r = {2:inac,3:inac,4:inac,7:inac,8:inac,9:inac,10:inac,11:inac,
+            #                              12:12,
+            #                              13:13,
+            #                              5:trans,6:trans
+            #                              }
+            for k,v in r.items():
+                strain.ClassName[strain.ClassName==k]=v
+
+        data = strain[(strain.chrom == "chr%s" % chro) & (
+            strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
+
+        if oData:
+            data.chromStart /= 1000
+            data.chromEnd /= 1000
+            return data
+
+        #x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
+        #y = np.array(data.ClassName)
+        x = np.array([data.chromStart,data.chromEnd]).reshape((1, -1), order="F")[0] / 1000
+        print(x[:10])
+        y = np.array([data.ClassName, data.ClassName]).reshape((1, -1), order="F")[0]
+
+
+        return x,y #re_sample(x, y, start, end, resolution)
 
     if experiment == "CNV":
         index = ["chrom", "chromStart", "chromEnd", "CNV", "Sig"]
@@ -1258,12 +1342,37 @@ def replication_data(strain, experiment, chromosome,
 
             data[data < 0] = np.nan
             data = np.array(data)
-            data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data])
+            data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data]) # Because centered at 5 kb
             y = np.array(data[int(start / 10): int(end / 10)])
             x = np.arange(len(y)) * 10 + start
             assert(len(x) == len(y))
+    if experiment == "MRTstd":
 
-    if experiment == "RNASeq":
+        for f in files:
+            if "Rep1" in f and "chr%s.dat" % str(chromosome) in f:
+                # print(f)
+                data = pd.read_csv(f,sep="\t")
+                print(data.shape)
+                break
+        data = data.apply(pd.to_numeric, args=('coerce',))
+        #data[data < 0] = np.nan
+        data = np.array(data)
+        data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data],axis=0)
+        mask = np.array(data[::,-1],dtype=np.bool)
+        data[mask,::]==np.nan
+        print(data.shape)
+        y = np.array(data[int(start / 10): int(end / 10)])[::,:6]
+
+        def delta_std(x):
+            time = np.array([0, 1, 2, 3, 4, 5])/5
+            time = time[np.newaxis,::] * np.ones((len(x)))[::,np.newaxis]
+            mrt = np.sum(x*time, axis=1)[::,np.newaxis]
+            return np.sum(x*(time-mrt) ** 2, axis=1) ** 0.5
+        y = delta_std(y)
+        x = np.arange(len(y)) * 10 + start
+        assert (len(x) == len(y))
+
+    if experiment == "RNA_seq":
         # print(files)
         for f in files:
             if "chr%s_" % str(chromosome) in f:
@@ -1274,9 +1383,9 @@ def replication_data(strain, experiment, chromosome,
 
         data[data < 0] = np.nan
         data = np.array(data)
-        data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data])
-        y = np.array(data[int(start / 10): int(end / 10)])
-        x = np.arange(len(y)) * 10 + start
+        #data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data])
+        y = np.array(data[int(start ): int(end )])
+        x = np.arange(len(y)) * 1 + start
         assert(len(x) == len(y))
 
     if experiment.startswith("OKSeq"):

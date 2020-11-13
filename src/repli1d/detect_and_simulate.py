@@ -2,6 +2,7 @@
 
 
 from repli1d.analyse_RFD import detect_peaks, compare, smooth, mapboth, get_codire, cut_larger_than
+from repli1d.profile_generation import  generate_slow_background, generate_group_genes
 from repli1d.fast_sim import get_fast_MRT_RFDs
 from repli1d.expeData import replication_data
 from repli1d.single_mol_analysis import compute_info, compute_real_inter_ori ,compute_mean_activated_ori
@@ -14,6 +15,7 @@ import pandas as pd
 from scipy import stats
 import pickle
 import os
+import json
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -68,6 +70,10 @@ parser.add_argument('--expbg',  action="store_true")
 parser.add_argument('--randomlarge',  action="store_true")
 parser.add_argument('--filter_termination',type=int,default=None)
 parser.add_argument('--introduction_time',type=int,default=None)
+parser.add_argument('--randomprofile', type=float, default=0)  # time to go on one bin
+parser.add_argument('--reverse_profile',  action="store_true")
+parser.add_argument('--extra_param',type=str,default=None)
+
 
 
 
@@ -91,6 +97,17 @@ kon = args.kon
 ndiff = args.ndiff
 nsim = args.nsim
 comp = args.comp
+noise = args.noise
+
+if args.extra_param != None:
+    with open(args.extra_param,"r") as f:
+        param = json.load(f)
+        ndiff = param["ndiff"]
+        noise = param["noise"]
+
+        print("Extra",ndiff,noise)
+
+
 if comp is None:
     comp = cell
 
@@ -102,7 +119,6 @@ else:
 expRFD = "OKSeq"
 if args.forkseq:
     expRFD = "ForkSeq"
-
 
 
 
@@ -138,7 +154,7 @@ else:
             break
 
 
-
+print(noise)
 
 GData = []
 
@@ -258,7 +274,7 @@ for start, end, ch, ndiff in list_task:
 
         d3p0[np.isnan(d3p0)] = 0
 
-        d3p = d3p0/(np.cos(2*np.pi*np.arange(len(d3p0))/20000)+1.1)
+        d3p = d3p0/(np.cos(2*np.pi*np.arange(len(d3p0))/5000)+1.1)
         #d3p[len(d3p)//2:] = d3p[len(d3p)//2:]/100
         """
         for iv,v in enumerate(d3p0):
@@ -320,9 +336,9 @@ for start, end, ch, ndiff in list_task:
                                   resolution=10, raw=False)
 
         mrt_tmp[np.isnan(mrt_tmp)] = 0
-        mrte = mapboth(mrt_tmp,d3p,2,pad=True)
-        mrte[mrte > 0.6] = 1
-        mrte[mrte <= 0.6] = 0
+        #mrte = mapboth(mrt_tmp,d3p,2,pad=True)
+        #mrte[mrte > 0.6] = 1
+        #mrte[mrte <= 0.6] = 0
         """
         _, rfd_tmp = replication_data(cell, "OKSeq", chromosome=ch,
 
@@ -334,15 +350,22 @@ for start, end, ch, ndiff in list_task:
         d3p = mrte * rfd_tmp"""
 
 
-        zone = np.nonzero(mrte)[0]
+        #zone = np.nonzero(mrte)[0]
 
         meanp = np.mean(d3p[d3p!=0])
         from scipy import signal
         #d3p = np.zeros_like(d3p)
-        for i in np.random.choice(zone,10):
+        for i in np.random.choice(range(len(d3p)),10):
             size = np.random.randint(20,30)
             print("Adding")
-            d3p[i-size:i+size] +=  signal.gaussian(2*size,std=size//3) * 4 *meanp*np.random.rand()
+            d3p[i-size:i+size] +=  signal.gaussian(2*size,std=size//3)  *meanp*np.random.rand()
+
+
+    if args.randomprofile != 0:
+
+        bg = generate_slow_background(np.arange(len(d3p)))
+        d3p = generate_group_genes(bg, coverage=args.randomprofile)
+
 
 
     stall = args.stalling
@@ -395,6 +418,9 @@ Masks_cut = []
 Segments = []
 
 
+
+print(d3pl,len(d3pl[0][1]))
+
 if args.cutholes:
     #Get masks and recompute ndiffs:
     tot_diff = 0
@@ -432,6 +458,12 @@ if args.cutholes:
 
 print("Total number of ff ",tot_diff)
 
+if args.cascade:
+    cascade = { "infl":100,"amount":1000,
+                "down":1,"damount":1 / 10000.}
+else:
+    cascade = args.cascade
+
 if not args.experimental:
     # Independent simulation for each chromosome
     from repli1d.fast_sim import get_fast_MRT_RFDs
@@ -440,8 +472,8 @@ if not args.experimental:
 
             # simulate
         lres.append(get_fast_MRT_RFDs(
-            nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*args.noise/len(d3p), ndiff, kon=kon,
-            fork_speed=fork_speed, dori=args.dori*5/resolution, single_mol_exp=args.single, continuous=args.continuous, cascade=args.cascade))
+            nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*noise/len(d3p), ndiff, kon=kon,
+            fork_speed=fork_speed, dori=args.dori*5/resolution, single_mol_exp=args.single, continuous=args.continuous, cascade=cascade))
     #print("check", np.sum(d3p), np.sum(np.ones_like(d3p)*np.sum(d3p)*0.1/len(d3p)))
 
         print("End Simeeeeuuuuuuuuuuuuuuuuuuuu")
@@ -452,6 +484,9 @@ else:
     if args.cutholes is None:
 
         bigch = np.concatenate([d3p for x, d3p,stallp in d3pl])
+
+
+
         if stall is not None:
             bigstallp = np.concatenate([stallp for x, d3p,stallp in d3pl])
         else:
@@ -497,36 +532,40 @@ else:
                          np.zeros_like(d3p)+np.nan,
                          np.zeros_like(d3p)+np.nan,None,[],[],[],
                          np.zeros_like(d3p)+np.nan,
-                         np.zeros_like(d3p)+np.nan,[]])
+                         np.zeros_like(d3p)+np.nan,[],
+                         np.zeros_like(d3p)+np.nan])
         bigch = np.concatenate(bigch)
         if stall is not None:
             bigstallp = np.concatenate(bigstallp)
 
     print(bigstallp)
 
+    if args.reverse_profile:
+        bigch = np.max(bigch) - bigch
+
 
     d3p = bigch
     res = get_fast_MRT_RFDs(
-        nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*args.noise/len(d3p), tot_diff, kon=kon,
+        nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*noise/len(d3p), tot_diff, kon=kon,
         fork_speed=fork_speed, dori=args.dori*5/resolution,
         single_mol_exp=args.single, continuous=args.continuous,
-        cascade=args.cascade, breaks=breaks, n_jobs=args.n_jobs,
+        cascade=cascade, breaks=breaks, n_jobs=args.n_jobs,
         binsize=resolution,timespend=bigstallp,nMRT=args.nMRT,
         filter_termination=args.filter_termination,introduction_time=args.introduction_time)
     from IPython.core.debugger import set_trace
 
-    MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt ,Time = res
+    MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt ,Time,MRTstd = res
 
     print("Sum",np.sum(Pt))
     if args.cutholes is None:
-        for MRTp, MRTs, RFDs,Pas,Pts, [x, d3ps,stallp] in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
-                                               np.split(Pa,sp),np.split(Pt,sp), d3pl):
-            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time])
+        for MRTp, MRTs, RFDs,Pas,Pts, [x, d3ps,stallp],MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
+                                               np.split(Pa,sp),np.split(Pt,sp), d3pl,np.split(MRTstd,sp)):
+            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time,MRTstds])
     else:
 
-        for MRTp, MRTs, RFDs,Pas,Pt, split in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
+        for MRTp, MRTs, RFDs,Pas,Pt, split, MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
                                                np.split(Pa,sp),np.split(Pt,sp),
-                                               split_ch):
+                                               split_ch,np.split(MRTstd,sp)):
             start_seg, end_seg, ch = split
 
             lres[ch ][0][start_seg:end_seg] = MRTp
@@ -534,6 +573,7 @@ else:
             lres[ch ][2][start_seg:end_seg] = RFDs
             lres[ch][7][start_seg:end_seg] = Pas
             lres[ch][8][start_seg:end_seg] = Pt
+            lres[ch][10][start_seg:end_seg] = MRTstds
             if lres[ch][3] is None:
                 # first peace:
                 lres[ch][3] = Rept_time
@@ -561,7 +601,7 @@ else:
 for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres):
     name_w = args.name+"_%i_%i_%i" % (ch, start, end)
 
-    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time = res
+    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx = res
     if args.save:
         with open(name_w+"alldat.pick", "wb") as f:
             pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
@@ -619,12 +659,14 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTs)])
         #print(ml,len(Pa),len(MRT),len(MRTs),len(RFDs))
         GData = pd.DataFrame({"chrom": ["chrom%i" % ch]*ml, "chromStart": x[:ml], "chromEnd": x[:ml], "RFDe": RFD[:ml],
-                              "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml], "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml]})
+                              "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
+                              "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml]})
     else:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTp)])
         GDatab = pd.DataFrame({"chrom": ["chrom%i" % ch]*ml, "chromStart": x[:ml], "chromEnd": x[:ml], "RFDe": RFD[:ml],
-                               "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],"Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml]})
+                               "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
+                               "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml]})
 
         GData = pd.concat([GData, GDatab], axis=0)
 
@@ -640,7 +682,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
             return float("%.2e" % v)
         except:
             return v
-    Res = {"marks": [args.signal], "Diff": [ndiff], "Random": [args.noise], "Dori": [args.dori*5/resolution],
+    Res = {"marks": [args.signal], "Diff": [ndiff], "Random": [noise], "Dori": [args.dori*5/resolution],
                          "MRTp": [[trunc2(MRTpearson[0]),MRTpearson[1]]], "RFDp": [[trunc2(RFDpearson[0]),RFDpearson[1]]],
                          "MRTstd": [trunc2(MRTstd)], "RFDstd": [trunc2(RFDstd)], "RepTime": [trunc2(np.median(Rept_time))], "ch": [ch],
                          "lenMRT": [len(mask_MRT)], "MRTkeep": [sum(mask_MRT)], "lenRFD": [len(mask_RFD)],
@@ -726,7 +768,7 @@ pMRT = stats.pearsonr(np.concatenate(gMRT), np.concatenate(gMRTe)),
 sMRT = np.std(np.concatenate(gMRT) - np.concatenate(gMRTe))
 meanCodire = np.mean(codire)
 print(args.name+"global_corre.csv")
-glob = pd.DataFrame({"marks": [args.signal],  "Random": [args.noise], "Dori": [args.dori*5/resolution],
+glob = pd.DataFrame({"marks": [args.signal],  "Random": [noise], "Dori": [args.dori*5/resolution],
                      "MRTp": pMRT, "RFDp": pRFD,
                      "MRTstd": [sMRT], "RFDstd": [sRFD],
                      "RepTime": [np.median(Rept_time)], "codire": [meanCodire]}).to_csv(args.name+"global_corre.csv", index=False)

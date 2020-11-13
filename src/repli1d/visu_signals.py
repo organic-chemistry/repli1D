@@ -57,6 +57,7 @@ if comp is None:
     comp = cell
 
 ToSee = []
+sup_sig=None
 if args.signal != []:
     blocs = []
     tmp = []
@@ -74,7 +75,7 @@ if args.signal != []:
             print(signal)
 
             def mini(resolution,signal):
-                if signal == "MRT" and not ("Yeast" in cell or "Cerevisae" in cell):
+                if signal in ["MRT","MRTstd"] and not ("Yeast" in cell or "Cerevisae" in cell):
                     if resolution < 10:
                         print("Warning MRT res will be dispalyed at 10 kb")
                     return max(resolution,10)
@@ -85,10 +86,13 @@ if args.signal != []:
 
             if signal == "Exp":
                 Xg, Yg, xmg, ymg, direction = get_expression(
-                    cell, ch, start, end, resolution, min_expre=0)
+                    cell, ch, start, end, resolution, min_expre=1)
                 d3p = direction
-                x = np.concatenate((Xg,xmg))
-                d3p = np.concatenate((Yg ,-ymg))
+                x = Xg
+                d3p = Yg
+                #ymg[ymg<1] = np.nan
+                sup_sig=[xmg,-ymg,"neg"]
+                #d3p[np.abs(d3p)<1]=np.nan
             elif "[" not in signal and "--" not in signal:
                 print("H")
                 x, d3p = replication_data(cell, signal, chromosome=ch,
@@ -149,6 +153,11 @@ if args.signal != []:
 
                 d3p[np.isnan(d3p)] = 0
             btosee.append([x, d3p, signal])
+            if sup_sig != None:
+                btosee.append(sup_sig)
+                sup_sig=None
+
+
         ToSee.append(btosee)
 """
 for signal in args.filename:

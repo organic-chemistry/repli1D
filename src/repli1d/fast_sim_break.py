@@ -753,7 +753,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             if single_mol_exp and (smess % single_mol_exp_sub_sample == 0):
                 if not start_exp:
                     #print(time, "start")
-                    single_mol_exp_v.append([time+time_evolve/2, time_evolve, np.sum(MRT() != 0)/len(d3p),
+                    single_mol_exp_v.append([time+time_evolve/2, time_evolve, np.sum(RFD() != 0)/len(d3p),
                                              copy.deepcopy(RFD().copy())])
                     start_exp = True
                 else:
@@ -830,6 +830,9 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                       binsize=5,continuous=False,wholeRFD=False,cascade={},breaks=None,
                       n_jobs=6,timespend=[],nMRT=6,filter_termination=None,introduction_time=None,wholeMRT=False,return_dict=False):
 
+
+    if not cascade:
+        cascade = {}
     print("EXperimental")
     #np.random.seed(1)
     if breaks is None:
@@ -953,16 +956,34 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
     n = nMRT
     dp = np.array(np.arange(0, 1+1/(2*n), 1/n)*100, dtype=np.int)
     MRTp = np.zeros_like(MRTs[0])
+    MRTpstd = np.zeros((len(MRTs[0]),nMRT))
+
     for MRT in MRTs:
         percentils = np.percentile(MRT, dp)
         for ip, (p1, p2) in enumerate(zip(percentils[:-1], percentils[1:]), 1):
             MRTp[(MRT > p1) & (MRT <= p2)] += ip/n
+            MRTpstd[(MRT > p1) & (MRT <= p2),ip-1] += 1
         MRTp[MRT == 0] += 1/n
+        MRTpstd[MRT == 0,0] += 1
 
     MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
+    MRTpstd = MRTpstd / nsim
+    #print(np.sum(MRTpstd,axis=1))
+
+    def delta_std(x):
+        time = np.array([0, 1, 2, 3, 4, 5]) / 5
+        time = time[np.newaxis, ::] * np.ones((len(x)))[::, np.newaxis]
+        mrt = np.sum(x * time, axis=1)[::, np.newaxis]
+        return np.sum(x * (time - mrt) ** 2, axis=1) ** 0.5
+    MRTpstd = delta_std(MRTpstd)
+
+
+
+
 
     if return_dict:
         return {"mean_MRT_normed":MRT_normed,
+                "MRTpstd":MRTpstd,
                 "mean_MRT_time":np.mean(np.array(MRTs), axis=0) * dt,
                 "hist_MRT":[MRTi * dt for MRTi in MRTs],
                 "mean_RFD":np.mean(np.array(RFDs), axis=0),
@@ -976,7 +997,7 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
     if not wholeRFD:
         return MRTp/nsim * n / (n - 1) - 1 / (n - 1), np.mean(np.array(MRTs), axis=0), \
             np.mean(np.array(RFDs), axis=0), np.array(Rep_Time) * dt, single_mol_exp_vs, \
-            position_time_activated_oris, It , Pa, Pt, np.arange(len(It))*dt
+            position_time_activated_oris, It , Pa, Pt, np.arange(len(It))*dt,MRTpstd
 
     if not wholeMRT:
         return MRTp/nsim * n / (n - 1) - 1 / (n - 1), np.mean(np.array(MRTs), axis=0), \
