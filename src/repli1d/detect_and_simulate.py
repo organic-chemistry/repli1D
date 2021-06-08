@@ -19,7 +19,7 @@ import json
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('--start', type=int, default=5000)
+parser.add_argument('--start', type=int, default=8000)
 parser.add_argument('--end', type=int, default=120000)
 parser.add_argument('--ch', type=int, default=1)
 parser.add_argument('--resolution', type=int, default=5)
@@ -73,10 +73,10 @@ parser.add_argument('--introduction_time',type=int,default=None)
 parser.add_argument('--randomprofile', type=float, default=0)  # time to go on one bin
 parser.add_argument('--reverse_profile',  action="store_true")
 parser.add_argument('--extra_param',type=str,default=None)
-
-
-
-
+parser.add_argument('--remove_neg',  action="store_true")
+parser.add_argument('--correct_activation',  action="store_true")
+parser.add_argument('--exclude_noise_save',  action="store_true")
+parser.add_argument('--datafile',type=str,default=None)
 
 
 # Cell is use to get signal
@@ -134,11 +134,18 @@ else:
                        133797422, 135086622, 133275309, 114364328, 107043718,
                        101991189, 90338345, 83257441,
                        80373285, 58617616, 64444167, 46709983, 50818468]
-    if "Yeast" in cell:
+        chn = range(1, len(chromlength) + 1)
+    elif "Yeast" in cell:
         index = pd.read_csv("../DNaseI/data/external/Yeast-MCM/1kb/index.csv",sep="\t")
         chromlength = [np.sum(index.chrom == "chr%i" %i)*1000 for i in range(1,17)]
+        chn = range(1, len(chromlength) + 1)
         print(chromlength)
-    chn = range(1, len(chromlength) + 1)
+    elif args.datafile != None:
+        data=pd.read_csv(args.datafile)
+        chn = list(set(data.chr))
+        chromlength = [len(data.chr==ch)*args.resolution for ch in chn]
+
+
     if args.nntest:
         chromlength = chromlength[-2:]
         chn = chn[-2:]
@@ -363,10 +370,17 @@ for start, end, ch, ndiff in list_task:
 
     if args.randomprofile != 0:
 
-        bg = generate_slow_background(np.arange(len(d3p)))
-        d3p = generate_group_genes(bg, coverage=args.randomprofile)
+        #bg = generate_slow_background(np.arange(len(d3p)))
+        #d3p = generate_group_genes(bg, coverage=args.randomprofile)
+        density = 5/30 #in kb
+        pos = np.random.randint(0,len(d3p),size=int(len(d3p)*density))
+        d3p=np.zeros_like(d3p)
+        for p in pos:
+            d3p[p] += 1
 
 
+    if args.remove_neg:
+        d3p[d3p<= 0] = 0
 
     stall = args.stalling
     if stall is not None:
@@ -471,6 +485,7 @@ if not args.experimental:
     for (start, end, ch, ndiff), [x, d3p,stallp] in zip(list_task, d3pl):
 
             # simulate
+
         lres.append(get_fast_MRT_RFDs(
             nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*noise/len(d3p), ndiff, kon=kon,
             fork_speed=fork_speed, dori=args.dori*5/resolution, single_mol_exp=args.single, continuous=args.continuous, cascade=cascade))
@@ -491,8 +506,6 @@ else:
             bigstallp = np.concatenate([stallp for x, d3p,stallp in d3pl])
         else:
             bigstallp = []
-
-
 
 
         breaks = []
@@ -533,7 +546,7 @@ else:
                          np.zeros_like(d3p)+np.nan,None,[],[],[],
                          np.zeros_like(d3p)+np.nan,
                          np.zeros_like(d3p)+np.nan,[],
-                         np.zeros_like(d3p)+np.nan])
+                         np.zeros_like(d3p)+np.nan,[],[]])
         bigch = np.concatenate(bigch)
         if stall is not None:
             bigstallp = np.concatenate(bigstallp)
@@ -545,22 +558,26 @@ else:
 
 
     d3p = bigch
+    noiselevel = np.sum(d3p)*noise/len(d3p)
+    d3p += np.ones_like(d3p) * noiselevel
     res = get_fast_MRT_RFDs(
-        nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*noise/len(d3p), tot_diff, kon=kon,
+        nsim, d3p, tot_diff, kon=kon,
         fork_speed=fork_speed, dori=args.dori*5/resolution,
         single_mol_exp=args.single, continuous=args.continuous,
         cascade=cascade, breaks=breaks, n_jobs=args.n_jobs,
         binsize=resolution,timespend=bigstallp,nMRT=args.nMRT,
-        filter_termination=args.filter_termination,introduction_time=args.introduction_time)
+        filter_termination=args.filter_termination,
+        introduction_time=args.introduction_time,correct_activation=args.correct_activation)
     from IPython.core.debugger import set_trace
 
-    MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt ,Time,MRTstd = res
+    MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, \
+        It , Pa, Pt ,Time,MRTstd,Free,Nfork,MRTsingle,T99,T95 = res
 
     print("Sum",np.sum(Pt))
     if args.cutholes is None:
         for MRTp, MRTs, RFDs,Pas,Pts, [x, d3ps,stallp],MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
                                                np.split(Pa,sp),np.split(Pt,sp), d3pl,np.split(MRTstd,sp)):
-            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time,MRTstds])
+            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time,MRTstds,Free,Nfork])
     else:
 
         for MRTp, MRTs, RFDs,Pas,Pt, split, MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
@@ -574,12 +591,16 @@ else:
             lres[ch][7][start_seg:end_seg] = Pas
             lres[ch][8][start_seg:end_seg] = Pt
             lres[ch][10][start_seg:end_seg] = MRTstds
+
             if lres[ch][3] is None:
                 # first peace:
                 lres[ch][3] = Rept_time
                 lres[ch][5] = pos_time_activated_ori
                 lres[ch][6] = It
                 lres[ch][9] = Time
+                lres[ch][11] = Free
+                lres[ch][12] = Nfork
+
 
                 #print(len(single_mol_exp))
                 #print(len(single_mol_exp[0]))
@@ -591,7 +612,9 @@ else:
                         lres[ch][4][isim][i][-1].append(single[3][start_seg:end_seg])
 
         #Redefine full d3p:
-        d3p = np.concatenate([d3p for x, d3p,stallp in d3pl])
+        d3p = np.concatenate([d3p  for x, d3p,stallp in d3pl])
+        if not args.exclude_noise_save:
+            d3p += np.ones_like(d3p)*noiselevel
         stallp = np.concatenate([stallp for x, d3p, stallp in d3pl])
             #.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It])
         #print(len(MRTp), len(RFDs), len(d3ps))
@@ -601,10 +624,12 @@ else:
 for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres):
     name_w = args.name+"_%i_%i_%i" % (ch, start, end)
 
-    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx = res
-    if args.save:
-        with open(name_w+"alldat.pick", "wb") as f:
-            pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
+    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx,Free,Nfork = res
+    if args.save and ch==1:
+        with open(args.name+"alldat.pick", "wb") as f:
+            #pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
+            pickle.dump([ Rept_time, Time, It,Free,Nfork,pos_time_activated_ori,MRTsingle,split_ch], f)
+
 
     if args.fsmooth != None:
         RFDs = smooth(RFDs, args.fsmooth)
@@ -639,12 +664,12 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
             RFDpearson, RFDstd, RFD, [mask_RFD, l] = compare(RFDs, "OKSeq", cellseq, res=resolution, ch=ch,
                                                              start=start, end=end, return_exp=True, rescale=1/resolution,
                                                              trunc=True, pad=True, return_mask=True, smoothf=args.fsmooth)
-    
+
             codire.append(get_codire(RFDs, cell, ch, start, end, resolution, min_expre=1))
             gRFD.append(RFDs[mask_RFD][:l])
             gRFDe.append(RFD[mask_RFD][:l])
         else:
-            
+
             MRTpearson, MRTstd, MRT = compare(
                 MRTp, "MRT", comp, res=1, ch=ch, start=start, end=end, return_exp=True, trunc=True, pad=True)
             RFDpearson, RFDstd, RFD = compare(RFDs, "OKSeq", cellseq, res=1, ch=ch,
@@ -686,10 +711,17 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
                          "MRTp": [[trunc2(MRTpearson[0]),MRTpearson[1]]], "RFDp": [[trunc2(RFDpearson[0]),RFDpearson[1]]],
                          "MRTstd": [trunc2(MRTstd)], "RFDstd": [trunc2(RFDstd)], "RepTime": [trunc2(np.median(Rept_time))], "ch": [ch],
                          "lenMRT": [len(mask_MRT)], "MRTkeep": [sum(mask_MRT)], "lenRFD": [len(mask_RFD)],
-                         "RFDkeep": [sum(mask_RFD)], "codire": [trunc2(codire[-1])],"NactiOri":mean_activated_ori,}
+                         "RFDkeep": [sum(mask_RFD)],
+                         "codire": [trunc2(codire[-1])],
+                         "NactiOri":mean_activated_ori,"T99":[trunc2(np.mean(T99))],
+                          "T95": [trunc2(np.mean(T95))]}
 
     if args.single:
         # print(single_mol_exp)
+        import pickle
+        if ch == 1:
+            with open(args.name+"Single_mol_ch1.pick","wb") as f:
+                pickle.dump(single_mol_exp,f)
         Deltas0 = compute_info(Sme=single_mol_exp, size_single_mol=int(
             200/resolution), n_sample=200)
         # print(Deltas0)
@@ -758,7 +790,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
 
 print(len(GData),len(d3p))
 GData["signal"] = d3p
-GData.to_csv(args.name+"global_profiles.csv", index=False, float_format="%.2f")
+GData.to_csv(args.name+"global_profiles.csv", index=False, float_format="%.4f")
 ldatg.to_csv(args.name+"global_scores.csv", index=False)
 
 pRFD = stats.pearsonr(np.concatenate(gRFD), np.concatenate(gRFDe)),
@@ -771,8 +803,12 @@ print(args.name+"global_corre.csv")
 glob = pd.DataFrame({"marks": [args.signal],  "Random": [noise], "Dori": [args.dori*5/resolution],
                      "MRTp": pMRT, "RFDp": pRFD,
                      "MRTstd": [sMRT], "RFDstd": [sRFD],
-                     "RepTime": [np.median(Rept_time)], "codire": [meanCodire]}).to_csv(args.name+"global_corre.csv", index=False)
+                     "RepTime": [np.median(Rept_time)],
+                     "codire": [meanCodire],
+                     "T99":[np.mean(T99)],
+                    "T95": [np.mean(T95)]}).to_csv(args.name+"global_corre.csv", index=False)
 
+mrt = pd.DataFrame({"RepTime":Rept_time}).to_csv(args.name+"rep_time.csv", index=False)
 # pylab.plot(np.concatenate(gMRT))
 # pylab.plot(np.concatenate(gMRTe))
 # pylab.show()

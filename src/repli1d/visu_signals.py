@@ -11,7 +11,7 @@ from repli1d.visu_browser import plotly_blocks
 import pylab
 import numpy as np
 import ast
-
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--start', type=int, default=5000)
@@ -152,6 +152,11 @@ if args.signal != []:
             if args.nan0 and "Exp" not in signal:
 
                 d3p[np.isnan(d3p)] = 0
+            if len(signal) > 20:
+
+                signal0 = os.path.split(signal)[1]
+                if signal0 != "":
+                    signal = signal0
             btosee.append([x, d3p, signal])
             if sup_sig != None:
                 btosee.append(sup_sig)

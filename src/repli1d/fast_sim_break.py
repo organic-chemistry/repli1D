@@ -501,7 +501,8 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
              single_mol_exp=False, single_mol_exp_sub_sample=50,
              pulse_size=2,cascade={},breaks=None,continuous=False,
              binsize=5,dori=30,list_chrom_ret=False,timespend=[],
-             filter_termination=None,introduction_time=None):
+             filter_termination=None,introduction_time=None,
+             correct_activation=True,dario=False):
 
     #np.random.seed(0)
     pos = np.arange(len(distrib))
@@ -512,21 +513,29 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
         # print(l)
         for p in init_ori:
             init_distrib[p] += 1
+        #print(sum(init_distrib))
     else:
         init_distrib = distrib / np.sum(distrib)
+
+    if dario:
+        init_distrib = distrib
+        #   print(sum(init_distrib))
+
 
     d3p= init_distrib
 
     introduced = 0
 
     if introduction_time is None:
-        avail = diff
         time = 0
-
+        avail = diff
     else:
         time = 0 # very important because if not the first event is when the first diffusing element cover one ch
 
         avail = 1
+
+    if correct_activation:
+        avail=1
 
     proba = d3p.copy()
 
@@ -556,9 +565,13 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             return np.concatenate([c.rfd for c in list_chrom])
 
     #pos, proba, newp, finished = generate_newp(pos, proba, 1,actual_pos=[],cascade=cascade)
+    #print("Before",avail)
     pos, proba, newp, finished,previous = generate_newp_no_corre(pos, proba, avail,
                                                                  actual_pos=actual_pos,cascade=cascade,
                                                                  previous =[])
+    tot_introduced=avail
+    nfork = [[avail,0]]
+
     avail = 0
     position_time_activated_ori = []
     terminations = []
@@ -589,9 +602,23 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
 
     last_intro = 0
-    tot_introduced = 0
     continuous_time = 0
+    Avails=[]
+    Noris = []
+
+    introduced=False
+    #print("There")
     while sum( [len(chrom.actual_pos) for chrom in list_chrom]) != 0:
+        if avail > diff:
+            print(avail,diff,time)
+
+            raise
+        if correct_activation and not introduced:
+            avail = diff-1
+            introduced=True
+        #print(avail,time)
+
+        Noris.append([np.sum(proba!=0),time])
         #print(time,avail,np.sum(proba!=0))
 
 
@@ -630,7 +657,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                     k_attach = 0
 
 
-                if introduction_time != None and tot_introduced <= diff:
+                if (introduction_time != None) and (tot_introduced < diff):
                     kaddN = 1.*diff / introduction_time * np.exp(-time / fork_speed(time) / introduction_time)
                 else:
                     kaddN = 0
@@ -653,7 +680,8 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             passed_time = 0
 
             while True:
-                status = add_attach_nothing(attached=attached,add=add,tot_introduced=tot_introduced+add)
+                status = add_attach_nothing(attached=attached,add=add,
+                                            tot_introduced=tot_introduced)
                 #print(status)
                 if continuous_time + passed_time + status[2] * fork_speed(time) > time+ next_e:
                     time_evolve = next_e
@@ -663,7 +691,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                 attached += status[0]
                 add += status[1]
                 passed_time += status[2] * fork_speed(time)
-
+                tot_introduced += status[1]
 
                 if continuous_time + passed_time > time + 1:
                     #print("Plusone" )
@@ -671,9 +699,21 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                     continuous_time += passed_time
                     break
 
+                if tot_introduced == diff:
+                    introduction_time = None
+
             #print("Avail %i, add %i , attached %i, tot_introduced %i"%(avail,add,attached,tot_introduced),continuous_time,time,time_evolve)
-            tot_introduced += add
+            if (introduction_time != None) and (time > (introduction_time * 3)) and tot_introduced != diff:
+                avail += diff-tot_introduced
+                tot_introduced = diff
+
             avail += add  # the one attached are remove afterward
+            Avails.append([avail,time])
+            nfork.append([nfork[-1][0],time])
+
+
+
+
 
         else:
 
@@ -775,13 +815,19 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             time += time_evolve
             actual_pos = []
             olds = np.sum(proba != 0)
+            newavail =0
             for chrom in list_chrom:
                 termination, iavail = chrom.evolve(time_evolve,proba,filter_termination=filter_termination)
 
                 chrom.check()
                 avail += iavail
+                newavail += iavail
+
                 actual_pos.extend(chrom.actual_pos)
                 terminations.extend(termination)
+            if newavail != 0:
+                nfork.append([nfork[-1][0] - newavail, time])
+                Avails.append([avail, time])
 
         if attached != 0:
             newp = []
@@ -805,7 +851,14 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                 proba[p] = 0
                 position_time_activated_ori.append([p, time, len(d3p) - np.sum(~np.isnan(MRTl))])
                 avail -= 1
+            nfork.append([nfork[-1][0] + len(newp), time])
+            Avails.append([avail,time])
 
+        if tot_introduced ==60 and (nfork[-1][0]+Avails[-1][0]) < tot_introduced:
+            print(nfork[-1][0],Avails[-1][0] , tot_introduced,len(breaks))
+            print(newp)
+            raise
+        #print(avail,len(list_chrom[0].actual_pos)/2)
         if debug:
             print("AFter", actual_pos)
 
@@ -820,7 +873,9 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
         return MRT(), RFD(), time, single_mol_exp_v, position_time_activated_ori,terminations , list_chrom
     else:
-        return MRT(), RFD(), time, single_mol_exp_v, position_time_activated_ori,terminations , tot_introduced
+        return MRT(), RFD(), time, single_mol_exp_v, \
+               position_time_activated_ori,terminations , \
+               tot_introduced, Avails, Noris, nfork
 
 
 
@@ -828,7 +883,9 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                       fork_speed=0.3,
                       single_mol_exp=False, pulse_size=5, it=True,
                       binsize=5,continuous=False,wholeRFD=False,cascade={},breaks=None,
-                      n_jobs=6,timespend=[],nMRT=6,filter_termination=None,introduction_time=None,wholeMRT=False,return_dict=False):
+                      n_jobs=6,timespend=[],nMRT=6,filter_termination=None,
+                      introduction_time=None,
+                      wholeMRT=False,return_dict=False,correct_activation=False,dario=False):
 
 
     if not cascade:
@@ -844,6 +901,10 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
     position_time_activated_oris = []
     terminations = []
     tot_introduced = []
+    Avails=[]
+    Forks=[]
+
+    Noris =[]
     #print("Nori", int(len(distrib)*binsize/dori))
     lao = []
     fork_speed_ct = False
@@ -858,22 +919,32 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                             fork_speed=fork_speed, single_mol_exp=single_mol_exp,
                             pulse_size=pulse_size,cascade=cascade,breaks=breaks,
                             continuous=continuous,binsize=binsize,dori=dori,timespend=timespend,
-                            filter_termination=filter_termination,introduction_time=introduction_time) for _ in range(nsim))
+                            filter_termination=filter_termination,
+                            introduction_time=introduction_time,
+                            correct_activation=correct_activation,dario=dario) for _ in range(nsim))
     else:
         res = [ fast_rep(distrib, ndiff, kon=kon, debug=False,
                             fork_speed=fork_speed, single_mol_exp=single_mol_exp,
                             pulse_size=pulse_size,cascade=cascade,breaks=breaks,
                             continuous=continuous,binsize=binsize,dori=dori,timespend=timespend,
-                            filter_termination=filter_termination,introduction_time=introduction_time) for _ in range(nsim)]
+                            filter_termination=filter_termination,introduction_time=introduction_time,
+                            correct_activation=correct_activation,dario=dario) for _ in range(nsim)]
 
-    for MRT, RFD, time, single_mol_exp_v, position_time_activated_ori,termination,totn in res:
+    for MRT, RFD, time, single_mol_exp_v, position_time_activated_ori,termination,totn,sAvails,sNoris,sForks in res:
         MRTs.append(MRT)
         RFDs.append(RFD)
         Rep_Time.append(time)
         single_mol_exp_vs.append(single_mol_exp_v)
+        # Rescale time in single mol to 0 1
+        for i in range(len(single_mol_exp_vs[-1])):
+            single_mol_exp_vs[-1][i][0] /= time
         position_time_activated_oris.append(position_time_activated_ori)
         terminations.append(termination)
         tot_introduced.append(totn)
+        Avails.append(sAvails)
+        Forks.append(sForks)
+        Noris.append(sNoris)
+        #print(sAvails[-4:],sForks[-4:],tot_introduced[-1])
 
 
     if it:
@@ -928,7 +999,32 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
 
             npts[assign] += 1
 
+
+
+    def compute_ft(data):
+        #Not perfect are average is not done over all simus
+        Flat_avail = np.zeros(maxi)
+        Flat_N = np.zeros(maxi)
+        for savails in data:
+            #print(savails)
+            for avail,ti in savails:
+                if int(ti)<len(Flat_avail):
+                    #if np.isnan()
+                    Flat_avail[int(ti)] += avail
+                    Flat_N[int(ti)] += 1
+            for tip in range(ti,len(Flat_avail)):
+                Flat_avail[int(tip)] += avail
+                Flat_N[int(tip)] += 1
+            #if int(ti) + 1 < len(Flat_avail):
+            #    print(int(ti)+1)
+            #    Flat_avail[int(ti) + 1] += avail
+            #    Flat_N[int(ti)+1] += 1
+        Flat_avail /= Flat_N
+        return Flat_avail
         #print(It[:10])
+    Flat_avail = compute_ft(Avails)
+    Flat_ori = compute_ft(Noris)
+    Flat_fork = compute_ft(Forks)
 
 
     # Probability of activation
@@ -977,9 +1073,16 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
         return np.sum(x * (time - mrt) ** 2, axis=1) ** 0.5
     MRTpstd = delta_std(MRTpstd)
 
+    def T(mrt, p, symetric=True):
+        if p == 0:
+            return np.max(mrt)
+        if not symetric:
+            return np.percentile(mrt, 100 - p) - np.min(mrt)
+        else:
+            return np.percentile(mrt, 100 - p / 2) - np.percentile(mrt, p / 2)
 
-
-
+    T99 = [T(mrt,p=1,symetric=False) * dt for mrt in MRTs]
+    T95 = [T(mrt,p=5,symetric=False) * dt for mrt in MRTs]
 
     if return_dict:
         return {"mean_MRT_normed":MRT_normed,
@@ -992,12 +1095,16 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                  "single_mol_exp":single_mol_exp_vs,
                 "position_time_activated_oris":position_time_activated_oris,
                 "It":It,"proba_activation":Pa,"proba_termination":Pt,
-                 "time":np.arange(len(It))*dt}
+                 "time":np.arange(len(It))*dt,
+                 "Free":Flat_avail,
+                "Nori": Flat_ori
+                }
 
     if not wholeRFD:
         return MRTp/nsim * n / (n - 1) - 1 / (n - 1), np.mean(np.array(MRTs), axis=0), \
             np.mean(np.array(RFDs), axis=0), np.array(Rep_Time) * dt, single_mol_exp_vs, \
-            position_time_activated_oris, It , Pa, Pt, np.arange(len(It))*dt,MRTpstd
+            position_time_activated_oris, It , Pa, Pt, np.arange(len(It))*dt,MRTpstd , \
+               Flat_avail,Flat_fork,[MRTi * dt for MRTi in MRTs],T99,T95
 
     if not wholeMRT:
         return MRTp/nsim * n / (n - 1) - 1 / (n - 1), np.mean(np.array(MRTs), axis=0), \

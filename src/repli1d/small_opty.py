@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cmd', type=str, default="")
 parser.add_argument('--root', type=str, default="")
 parser.add_argument('--redo', action="store_true")
+parser.add_argument('--maxT', type=float,default=None)
 
 
 
@@ -63,9 +64,9 @@ def score(repo, rfd=False):
 
 maxi=0
 params = {}
-for ndiff in [30, 45, 60, 75, 90, 105, 120,140]:
+for ndiff in [45,60, 75, 90, 105, 120,140]:
     #ndiff = 60
-    for random_activation in [0, 0.05]:
+    for random_activation in [0,0.02, 0.05,0.1]:
 
 
         # simulate
@@ -89,8 +90,9 @@ for ndiff in [30, 45, 60, 75, 90, 105, 120,140]:
         MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)
         new = MRTpearson+RFDpearson
         if new > maxi:
-            maxi=new
-            params={"ndiff":ndiff/110,"noise":random_activation}
+            if args.maxT is  None or Rep_Time < args.maxT:
+                maxi=new
+                params={"ndiff":ndiff/110,"noise":random_activation}
         print(MRTpearson, MRTstd, RFDpearson, RFDstd)
 
         D.append(ndiff)

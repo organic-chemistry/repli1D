@@ -29,7 +29,6 @@ parser.add_argument('--array', type=int, default=None)
 parser.add_argument('--noise', type=float, default=.1)
 parser.add_argument('--compMRT', type=str, default=None)
 parser.add_argument('--compRFD', type=str, default=None)
-parser.add_argument('--compRFD', type=str, default=None)
 parser.add_argument('--reverse_profile',  action="store_true")
 
 
@@ -130,9 +129,9 @@ for mark in marks:
         for ndiff in [30, 45, 60, 75, 90, 105, 120]:
             #ndiff = 60
             for random_activation in [0, 0.05, 0.1, 0.2]:
-                for dori in [5, 15, 30]:
+                for dori in [1,5, 15, 30]:
                     if "/" in mark:
-                        mark0 = "Epi_Bigger"
+                        mark0 = "rfd2init"
                     else:
                         mark0 = mark
                     # simulate

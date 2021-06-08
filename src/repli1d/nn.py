@@ -17,7 +17,10 @@ import numpy as np
 def transform_norm(signal):
     s = np.array(signal).copy()
     s -= np.percentile(s, 10)
-    s /= np.percentile(s, 50)
+    p = np.percentile(s, 50)
+    if p == 0:
+        p = np.mean(s)
+    s /= p
     s /= 5
     s[s > 50] = 50
     return np.array(s,dtype=np.float32) #mod
@@ -44,16 +47,17 @@ def transform_norm_meth(signal):
 def load_signal(name,
                 marks=['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac', 'H3k4me2',
                        'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1"],
-                targets=["initiation"], t_norm=None, smm=None,wig=True,augment=None):
+                targets=["initiation"], t_norm=None, smm=None,wig=True,augment=None,show=True):
+    if type(name) == str:
+        df = pd.read_csv(name)
 
-    df = pd.read_csv(name)
     #wig = True
 
     if "signal" in df.columns:
         df["initiation"] = df["signal"]
 
     if wig:
-        lm = ["DNaseI", "initiation", "Meth", "Meth450", "RFDs", "MRTs", "RFDe", "MRTe","AT_20"]
+        lm = ["DNaseI", "initiation", "Meth", "Meth450", "RFDs", "MRTs", "RFDe", "MRTe","AT_20","RNA_seq","AT_5","AT_30"]
         marks0 = [m+"wig" for m in marks if m not in lm]
         for sm in lm:
             if sm in marks:
@@ -63,13 +67,15 @@ def load_signal(name,
         marks = marks0
 
     if "notnan" in df.columns:
-        print("Found notnan")
+        if show:
+            print("Found notnan")
         notnan = df["notnan"]
     else:
         notnan = []
 
     df = df[targets+marks]
-    print(df.describe())
+    if show:
+        print(df.describe())
 
     yinit = [df.pop(target) for target in targets]
     # print(yinit.shape,"Yinit shape")
@@ -78,7 +84,8 @@ def load_signal(name,
         transform_norm = t_norm
 
     for col in df.columns:
-        # print(col)
+        if show:
+            print(col)
         if col not in ["DNaseI", "initiation", "Meth", "Meth450","RFDe","MRTe","RFDs","MRTs"]:
             df[col] = transform_norm(df[col])
         elif col == "DNaseI":
@@ -108,8 +115,9 @@ def load_signal(name,
         if np.sum(np.isnan(df[col])) !=0:
             raise "NanVal"
 
-    print(np.max(yinit[0]), "max")
-    print(df.describe())
+    if show:
+        print(np.max(yinit[0]), "max")
+        print(df.describe())
 
 
 
@@ -124,6 +132,8 @@ def load_signal(name,
             yinit0.append(transform_DNase(y))
         elif t == "OKSeq":
             yinit0.append((y+1)/2)
+        elif t == "ORC2":
+            yinit0.append(y)
         else:
             raise "Undefined target"
 
@@ -143,7 +153,7 @@ def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     # y = (seq)
     Xt = np.array(Xt)
     yt = np.array(yt)
-    print(Xt.shape, yt.shape)
+    #print(Xt.shape, yt.shape)
 
     assert(len(Xt.shape) == 2)
     assert(len(yt.shape) == 2)
@@ -153,33 +163,35 @@ def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     # [::,np.newaxis] #Take the value at the middle of the segment
     Y = window_stack(yt[::, np.newaxis], stepsize, width)[::, width//2]
 
-    print(X.shape, Y.shape)
+    #print(X.shape, Y.shape)
     # exit()
 
     return X, Y
 
 
 def create_model(X_train, targets, nfilters, kernel_length,loss="binary_crossentropy"):
-    print(X_train.shape,targets,nfilters,kernel_length)
+    #print(X_train.shape,targets,nfilters,kernel_length)
 
+    dropout=0.2
+    dropout=0.01
     K.set_image_data_format('channels_last')
 
     multi_layer_keras_model = Sequential()
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), input_shape=X_train.shape[1:]))
     multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(Dropout(0.2))
+    multi_layer_keras_model.add(Dropout(dropout))
 
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), input_shape=X_train.shape[1:]))
     multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(Dropout(0.2))
+    multi_layer_keras_model.add(Dropout(dropout))
 
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), input_shape=X_train.shape[1:]))
     multi_layer_keras_model.add(Activation('relu'))
     multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    multi_layer_keras_model.add(Dropout(0.2))
+    multi_layer_keras_model.add(Dropout(dropout))
 
     multi_layer_keras_model.add(Flatten())
     multi_layer_keras_model.add(Dense(len(targets)))
@@ -196,7 +208,7 @@ def create_model_imp(X_train, targets, nfilters, kernel_length,loss="binary_cros
     print(X_train.shape,targets,nfilters,kernel_length)
 
     K.set_image_data_format('channels_last')
-    drop=0.01
+    drop=0.2
     multi_layer_keras_model = Sequential()
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), input_shape=X_train.shape[1:]))
@@ -362,11 +374,11 @@ if __name__ == "__main__":
             valt = [4, 18, 21, 22]
             testt = [5, 20]
             """
-            traint = [3,4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
+            traint =  [3,4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
             valt = [20, 21, 22, 23]
             valt = [2]
 
-            testt = [1]
+            testt = [1]#1]
 
             for v in testt:
                 assert(v not in traint)

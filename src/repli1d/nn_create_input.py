@@ -9,6 +9,12 @@ from repli1d.analyse_RFD import propagate_n_false
 
 def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=False,resolution=5):
 
+    if "highest_correlation.csv" in peak:
+        with open(peak,"r") as fich:
+            peak = fich.readlines()[0]
+            peak.strip()
+
+    print(peak)
     redo = False
 
     if norm:
@@ -33,6 +39,8 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
     marks += ["Meth"]
     marks += ["Meth450"]
     marks += ["AT_5","AT_20","AT_30"]
+    marks += ["RNA_seq"]
+    #marks += ["ORC2"]
 
     for mark in marks:
         print(mark)
@@ -61,6 +69,7 @@ def load_signals_and_transform_to_ml_format(peak, strain, norm=False,roadmap=Fal
         #if mark in ["MRT","RFD"]:
             #mark += "e"
         Data[mark] = smark
+
 
     try:
         with open(peak, "rb") as f:

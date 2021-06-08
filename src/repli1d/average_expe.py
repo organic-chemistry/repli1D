@@ -65,9 +65,11 @@ if __name__ == "__main__":
         SingleFiber = ["Fiber200_percent_0_Forks","Fiber200_percent_1_Forks",
                        "Fiber200_percent_2_Forks","Fiber200_percent_3_Forks",
                        "Fiber200_percent_4_Forks ",	"Nforkperfibrwithfork","codire"]
-        for k in ["MRTp", "RFDp", "RepTime", "MRTstd", "RFDstd", "Cumulstd","Cumulp"] + SingleFiber:
+        for k in ["MRTp", "RFDp", "RepTime", "MRTstd",
+                  "RFDstd", "Cumulstd","Cumulp","T99","T95"] + SingleFiber:
             if k in data.columns:
                 sd[k] = data.mean()[k]
+
 
         if "csv" in sd["marks"]:
             sd["marks"] = sd["marks"].split("/")[-1][:-4]
@@ -84,6 +86,8 @@ if __name__ == "__main__":
         if sd["marks"] == "nn_fk.csv":
             sd["marks"] = "nn_K562_from_K562"
             print("Changing name")
+        if "rfd2init" in fich:
+            sd["marks"] = "rfd2init"
 
         # Compute deltas:
         if args.delta:

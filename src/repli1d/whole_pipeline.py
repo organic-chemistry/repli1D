@@ -12,22 +12,26 @@ parser.add_argument('--update', action="store_true")
 args = parser.parse_args()
 
 
-standard_parameters = "--cutholes 1500 --single --visu --experimental --wholecell --input  --nsim 200 --dori 5  --noise 0.0 --kon 5e-7 "
-small_sub= "--cutholes 1500 --single --visu --experimental --input  "
-standard_parameters = small_sub + "--wholecell --kon 1e-5 --noise 0.0 --nsim 200  --dori 5 "
+#standard_parameters = " --cutholes 1500 --single --visu --experimental --wholecell --input  --nsim 200 --dori 5  --noise 0.0 --kon 5e-7 "
+small_sub= "--cutholes 1500 --single --visu --experimental --input --introduction_time 60 "
+standard_parameters = small_sub + " --exclude_noise_save --wholecell --kon 1e-5 --noise 0.0 --nsim 200  --dori 5 "
 
 cell = args.cell
 
 if cell == "K562":
     ndiff = 0.6
     cellcmd = "--cell K562"
+    maxT = 12 * 60 * 1.1
 elif cell  == "GM":
     ndiff = 0.6
     cellcmd = "--cell Gm12878 --comp GM12878 --cellseq GM06990"
+    maxT = 12 * 60 * 1.1
 elif cell == "Hela":
     ndiff = 1.1
     cellcmd = "--cell Helas3"
+    maxT = 8 * 60 * 1.1
 
+#maxT *= 100
 standard_parameters += "--ndiff %.2f %s"%(ndiff,cellcmd)
 
 #run simulation with peak
@@ -39,7 +43,7 @@ cmd = [ ["python src/repli1d/detect_and_simulate.py %s --name %s --signal peak -
 #run simulation with peak and random large
 """
 directory_opti = args.root+"/%s_RFD_to_init_small_opti_0/" % cell
-cmd = [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal peakRFDonly' ",
+cmd = [[f"python src/repli1d/small_opty.py --root {directory_opti}  --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal peakRFDonly' ",
          directory_opti+"/global_profiles.csv"]]
 
 directory = args.root+"/%s_peakRFD_no_random_large_wholecell/" % cell
@@ -66,7 +70,7 @@ cmd += [["python src/repli1d/nn.py --listfile %s/global_profiles.csv --marks RFD
 
 #small opti
 directory_opti = args.root+"/%s_RFD_to_init_small_opti_1/" % cell
-cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
+cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti}  --maxT {maxT} --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
          directory+"/global_profiles.csv"]]
 # load parameters
 
@@ -85,46 +89,52 @@ cmd += [["python src/repli1d/nn.py --listfile %s/global_profiles.csv --marks RFD
          directory_nn+"/nn_global_profiles.csv"]]
 
 directory_opti = args.root+"/%s_RFD_to_init_small_opti_2/" % cell
-cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
+cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --maxT {maxT} --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
          directory+"/global_profiles.csv"]]
 
 # run simulation with predicted peak from nn2
 directory = args.root+"/%s_RFD_to_init_wholecell2/" % cell
-cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/nn_global_profiles.csv --noise 0 --extra_param %s/params.json  "%(standard_parameters,
+cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/nn_global_profiles.csv --noise 0 --extra_param %s/params.json --save "%(standard_parameters,
                                                                                                                                                directory,
                                                                                                                                                directory_nn,
                                                                                                                                                directory_opti),
          directory+"/global_profiles.csv"]]
 
 directory_nn = args.root+"/%s_RFD_to_init_nn3/" % cell
-cmd += [["python src/repli1d/nn.py --listfile %s/global_profiles.csv --marks RFDs MRTs --root %s --sm 5  --noenrichment --window 401 --imp --nfilters 30 --reduce_lr" % (directory,directory_nn),
+cmd += [["python src/repli1d/nn.py --listfile %s/global_profiles.csv --marks RFDs MRTs --root %s --sm 5  --noenrichment --window 401 " % (directory,directory_nn),
          directory_nn+"/nn_global_profiles.csv"]]
 
 # run simulation with predicted peak from nn2
 directory_opti = args.root+"/%s_RFD_to_init_small_opti_3/" % cell
-cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
+cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --maxT {maxT} --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal {directory_nn}/nn_global_profiles.csv' ",
          directory+"/global_profiles.csv"]]
 
 directory = args.root+"/%s_RFD_to_init_wholecell3/" % cell
-cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/nn_global_profiles.csv --noise 0  --extra_param %s/params.json"%(standard_parameters,
+cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/nn_global_profiles.csv --noise 0 --save --extra_param %s/params.json"%(standard_parameters,
                                                                                                                                               directory,
                                                                                                                                               directory_nn,
                                                                                                                                               directory_opti),
          directory+"/global_profiles.csv"]]
 
 directory_ml = "/home/jarbona/repli1D/data/mlformat_whole_pipe_%s.csv" % cell
-# Generate file to do nn (must contain initiation and epi)
 
-cmd += [["python src/repli1d/nn_create_input.py --peak %s/nn_global_profiles.csv  --cell %s --outfile %s "%(directory_nn2,cell,directory_ml),
+
+# Select the highest correlation
+cmd += [[f"python src/repli1d/get_highest_correlation.py --root {args.root}",
+        directory_ml]]
+
+
+# Generate file to do nn (must contain initiation and epi)
+cmd += [["python src/repli1d/nn_create_input.py --peak %s/highest_correlation.csv  --cell %s --outfile %s "%(args.root,cell,directory_ml),
         directory_ml]]
 
 marks = ['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac',
                  'H3k4me2', 'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1"]
-
+marks += ["RNA_seq","DNaseI"]
 marks = " ".join(marks)
 add = "_plus_AT/"
-add="/"
-
+add="_RNA_seq_AT/"
+add="_all/"
 #run nn.py on peaks to predict from epigenetic marks
 extra = "/home/jarbona/repli1D/data/mlformat_whole_pipe_GM.csv /home/jarbona/repli1D/data/mlformat_whole_pipe_Hela.csv"
 directory_nn = args.root+"/%s_Epi_nn" % cell
@@ -137,34 +147,35 @@ cmd += [["python src/repli1d/nn.py  --noenrichment --targets initiation --root %
 
 
 directory_opti = args.root+"/%s_RFD_to_init_small_opti_4/" % cell
-cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal {directory_nn}/{file}' ",
+cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --maxT {maxT} --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal {directory_nn}/{file}' ",
          directory+"/global_profiles.csv"]]
 
 directory = args.root+"/%s_Epi_from_%s_wholecell" % (cell,cell)
 directory += add
 #run simulation on epigenetic marks (and for other cell lines)
-cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/%s  --extra_param %s/params.json  "%(standard_parameters,
+cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/%s --save --extra_param %s/params.json  "%(standard_parameters,
                                                                                                                   directory,
                                                                                                                   directory_nn,
                                                                                                                   file,directory_opti),
         directory +"/global_profiles.csv"]]
 
-
+"""
 #run nn.py on peaks to predict from epigenetic marks (Bigger net)
-directory_nn_bigger = args.root+"/%s_Epi_nn_bigger" % cell
+directory_nn_bigger = args.root+"/%s_Epi_smaller_dropout_enrichment" % cell
 directory_nn_bigger += add
 file = "/nn_%s_from_%s.csv" % (cell,"None") # to check for output
-cmd += [["python src/repli1d/nn.py   --targets initiation --root %s --listfile %s  --window 101 --kernel_length 20 --nfilters 30 --noenrichment --wig 1 --predict_files %s %s --marks %s" % (directory_nn_bigger,directory_ml,directory_ml,extra,marks),
+#Before double filter and kernel
+cmd += [["python src/repli1d/nn.py   --targets initiation --root %s --listfile %s   --wig 1 --predict_files %s %s --marks %s" % (directory_nn_bigger,directory_ml,directory_ml,extra,marks),
         directory+file]]
 
 
-directory_opti = args.root+"/%s_RFD_to_init_small_opti_5/" % cell
-cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --cmd '{small_sub} --ch 2 --nsim 200 --dori 20 {cellcmd} --signal {directory_nn_bigger}/{file}' ",
+directory_opti = args.root+"/%s_RFD_to_init_small_opti_12/" % cell
+cmd += [[f"python src/repli1d/small_opty.py --root {directory_opti} --maxT {maxT} --cmd '{small_sub} --ch 2 --nsim 200 --dori 10 {cellcmd} --signal {directory_nn_bigger}/{file}' ",
          directory+"/global_profiles.csv"]]
 
 
 
-directory = args.root+"/%s_Epi_bigger_from_%s_wholecell" % (cell,cell)
+directory = args.root+"/%s_Epi_smaller_dropout_enrichment_from_%s_wholecell" % (cell,cell)
 directory += add
 #run simulation on epigenetic marks (and for other cell lines)
 cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/%s  --extra_param %s/params.json "%(standard_parameters,
@@ -173,7 +184,7 @@ cmd += [["python src/repli1d/detect_and_simulate.py %s --name %s --signal %s/%s 
                                                                                                                  file,directory_opti),
         directory +"/global_profiles.csv"]]
 
-
+"""
 
 
 redo = not args.update

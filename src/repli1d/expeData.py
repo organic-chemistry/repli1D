@@ -64,7 +64,7 @@ def is_available(strain, experiment):
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
     marks_bw = [m + "wig" for m in marks]
-    Prot = ["Rad21"]
+    Prot = ["Rad21","ORC2"]
 
     #print("La")
 
@@ -365,7 +365,6 @@ def is_available(strain, experiment):
             files = [extract[cells.index(strain)]]
             return True, files, 1
 
-    if experiment == "ORC2":
         root = ROOT + "/external/proteins//"
 
         extract = glob.glob(root + "/*.csv")
@@ -724,7 +723,7 @@ def replication_data(strain, experiment, chromosome,
             data = strain[(strain.chrom == "chr%s" % chro) & (
                 strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
             #print("La")
-            #print(data)
+            print(data)
             if oData:
                 return data
 
