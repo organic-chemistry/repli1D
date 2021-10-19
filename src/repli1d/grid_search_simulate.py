@@ -30,6 +30,8 @@ parser.add_argument('--noise', type=float, default=.1)
 parser.add_argument('--compMRT', type=str, default=None)
 parser.add_argument('--compRFD', type=str, default=None)
 parser.add_argument('--reverse_profile',  action="store_true")
+parser.add_argument('--OE2IE',action="store_true")
+
 
 
 args = parser.parse_args()
@@ -52,18 +54,30 @@ if args.compRFD is not None:
     compRFD = args.compRFD
 
 
+
 if cell =="GM12878":
     marks = ["results//nn_GM_from_None.csv"]
 else:
     marks = ["results//nn_%s_from_None.csv" %(cell)]
 
-marks += ["RNA_seq"]
-
-marks += ["Bubble"]
-marks += ['DNaseI', 'ORC2',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
-         'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac',  'H3k9me3', 'H4k20me1', 'H3k9me1']
-
+marks += ["Bubble",'ORC2']
 marks += ["SNS"]
+marks += ["exp4"]
+
+marks += ["RNA_seq"]
+marks += ['DNaseI',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
+         'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac',  'H3k9me3', 'H4k20me1', 'H3k9me1']
+marks=["oli"]
+#marks = ["MCM","MCMo","MCMp"]
+marks=["MCMp"]
+marks = ["SNS"]
+marks += ["Bubble"]
+
+marks=["exp4","oli","flat"]
+marks=["Mcm3","Mcm7","Orc2","Orc3"]
+
+marks+=["exp4","oli","flat"]
+marks += ["results/Raji_nn_global_profiles.csv"]
 
 #marks = ["DNaseI"]
 
@@ -103,7 +117,7 @@ Kon = []
 
 
 def score(repo, rfd=False):
-    score = pd.read_csv("%s//global_corre.csv" % repo)
+    score = pd.read_csv("%s/global_corre.csv" % repo)
     # print(score["MRTp"][0])
     MRTp = float(score["MRTp"][0].split(",")[0][1:])
     MRTstd = score["MRTstd"][0]
@@ -122,9 +136,10 @@ for mark in marks:
                             resolution=5, raw=False, oData=False,
                             bp=True, bpc=False)
     print(mark, d)
-    if d == []:
+    if d == [] and (mark not in ["exp4","oli","flat"]) :
         print("Skipping %s" % mark)
-        continue
+        if "/" not in mark:
+            continue
     for kon in [5e-7]:
         for ndiff in [30, 45, 60, 75, 90, 105, 120]:
             #ndiff = 60
@@ -147,22 +162,26 @@ for mark in marks:
                         add = ""
                     filename += add
                     #filename += ".pick"
-
-                    if not os.path.exists(filename + "/global_corre.csv") or args.redo:
+                    score_file = filename + "/global_corre.csv"
+                    if os.path.exists(score_file) and not args.redo:
+                        MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)
+                    else:
                         print(filename)
 
-
+                        add=""
                         if args.reverse_profile:
                             add =" --reverse_profile "
                         else:
                             add = ""
-                        bgcmd = ("python src/repli1d/detect_and_simulate.py --input --visu " 
+                        if args.OE2IE:
+                            add += " --OE2IE "
+                        bgcmd = ("python src/repli1d/detect_and_simulate.py --input --visu "
                                     "--signal %s --ndiff %.3f --dori %i --ch 1 "
                                     "--name %s/ --resolution 5 --resolutionpol 5"
-                                    " --nsim 200  --wholecell --kon 1e-5 --save --cutholes 1500"
-                                    " --experimental --n_jobs 8 --noise %.2f --only_one " % (mark, ndiff/110, dori, filename, random_activation))
+                                    " --nsim 200  --wholecell --kon 1e-5  --cutholes 1500"
+                                    " --experimental --n_jobs 8 --noise %.2f --only_one --introduction_time 60 " % (mark, ndiff/110, dori, filename, random_activation))
                         bgcmd += add
-                        if cell in ["HeLaS3","Hela","K562","GM"]:
+                        if cell in ["HeLaS3","Hela","K562","GM","Raji"]:
                             csa=cell
                             if cell in ["HeLaS3","Hela","Helas3"]:
                                 csa = "Hela"
@@ -178,7 +197,7 @@ for mark in marks:
                             #exit()
                             os.system(command)
 
-                    MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)
+                        MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)
                     print(MRTpearson, MRTstd, RFDpearson, RFDstd)
 
                     M.append(mark)

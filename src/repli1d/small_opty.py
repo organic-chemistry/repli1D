@@ -16,7 +16,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cmd', type=str, default="")
 parser.add_argument('--root', type=str, default="")
 parser.add_argument('--redo', action="store_true")
+parser.add_argument('--pearson', action="store_true")
+parser.add_argument('--rfd_opti_only', action="store_true")
+
 parser.add_argument('--maxT', type=float,default=None)
+parser.add_argument('--ndiff', nargs='+', type=int, default=[45,60, 75, 90, 105, 120,140])
+parser.add_argument('--size_segment', type=float, default=110,
+                    help="Size of the segment (in MB to simulate)")
+
 
 
 
@@ -52,19 +59,21 @@ Kon = []
 def score(repo, rfd=False):
     score = pd.read_csv("%s//global_corre.csv" % repo)
     # print(score["MRTp"][0])
-    MRTp = float(score["MRTp"][0].split(",")[0][1:])
+    MRTp = round(float(score["MRTp"][0].split(",")[0][1:]),2)
     MRTstd = score["MRTstd"][0]
-    RFDp = float(score["RFDp"][0].split(",")[0][1:])
+    RFDp = round(float(score["RFDp"][0].split(",")[0][1:]),2)
     RFDstd = score["RFDstd"][0]
     RepTime = score["RepTime"][0]
     #scorev = 2-c1-c2
 
     return MRTp, MRTstd, RFDp, RFDstd, RepTime
 
-
+pearson = args.pearson
+pearson=False
 maxi=0
+mini=10000
 params = {}
-for ndiff in [45,60, 75, 90, 105, 120,140]:
+for ndiff in args.ndiff:
     #ndiff = 60
     for random_activation in [0,0.02, 0.05,0.1]:
 
@@ -88,12 +97,26 @@ for ndiff in [45,60, 75, 90, 105, 120,140]:
                 os.system(command)
 
         MRTpearson, MRTstd, RFDpearson, RFDstd, Rep_Time = score(filename)
-        new = MRTpearson+RFDpearson
-        if new > maxi:
+        if pearson:
+            if args.rfd_opti_only:
+                new = RFDpearson
+            else:
+                new = MRTpearson+RFDpearson
+
+        else:
+            if args.rfd_opti_only:
+                new = RFDstd
+            else:
+                new = RFDstd+MRTstd
+        if (pearson and (new >= maxi)) or (not pearson and new<=mini):
             if args.maxT is  None or Rep_Time < args.maxT:
-                maxi=new
-                params={"ndiff":ndiff/110,"noise":random_activation}
-        print(MRTpearson, MRTstd, RFDpearson, RFDstd)
+                if pearson:
+                    maxi=new
+                else:
+                    mini=new
+                print("New",maxi,ndiff,random_activation)
+                params={"ndiff":ndiff/args.size_segment,"noise":random_activation}
+        print(MRTpearson, MRTstd, RFDpearson, RFDstd,)
 
         D.append(ndiff)
         R.append(random_activation)
@@ -109,3 +132,6 @@ for ndiff in [45,60, 75, 90, 105, 120,140]:
 
         with open(args.root+"/params.json","w") as f:
             json.dump(params,f)
+if params == {}:
+    print("No simulation are satisfying the time constraint")
+    raise

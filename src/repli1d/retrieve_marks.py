@@ -1,7 +1,4 @@
-import theano
-import theano.tensor.nnet as nnet
-from scipy import optimize
-import pymc3 as pm
+
 from repli1d.visu_browser import plotly_blocks
 from repli1d.analyse_RFD import mapboth
 import numpy as np
@@ -121,6 +118,10 @@ if __name__ == "__main__":
     import numpy as np
     import argparse
     import pickle
+    import theano
+    import theano.tensor.nnet as nnet
+    from scipy import optimize
+    import pymc3 as pm
 
     parser = argparse.ArgumentParser()
     # parser.add_argument('--start', type=int, default=5000)

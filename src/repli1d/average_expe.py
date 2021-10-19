@@ -36,7 +36,6 @@ if __name__ == "__main__":
         dirs = glob.glob(args.dirs + "/*")
     else:
         dirs = [args.dir]
-    print(dirs)
     for dir in dirs:
         extra = args.extra
         fich = dir + "/%sglobal_scores.csv" % extra
@@ -76,6 +75,7 @@ if __name__ == "__main__":
             print("Changing name")
         if "weight" in sd["marks"]:
             sd["marks"] = sd["marks"].split("/")[-1]
+            print(dirs)
             print("Changing name")
         if sd["marks"] == "nn_hela_fk.csv":
             sd["marks"] = "nn_Hela_from_K562.csv"
@@ -88,6 +88,8 @@ if __name__ == "__main__":
             print("Changing name")
         if "rfd2init" in fich:
             sd["marks"] = "rfd2init"
+        if "markns" in fich:
+            sd["marks"] += "ns"
 
         # Compute deltas:
         if args.delta:

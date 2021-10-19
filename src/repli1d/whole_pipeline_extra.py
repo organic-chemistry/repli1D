@@ -19,6 +19,9 @@ cell = args.cell
 if cell == "K562":
     ndiff = 0.4
     cellcmd = "--cell K562"
+elif cell == "Raji":
+    ndiff = 0.4
+    cellcmd = "--cell K562"
 elif cell  == "GM":
     ndiff = 0.6
     cellcmd = "--cell Gm12878 --comp GM12878 --cellseq GM06990"

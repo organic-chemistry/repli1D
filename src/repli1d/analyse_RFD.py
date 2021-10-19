@@ -287,7 +287,7 @@ def compare(simu, signal, cell, res, ch, start, end, trim=0.05, return_exp=False
                                      start=start, end=end,
                                      resolution=res, raw=False, pad=pad)
 
-    print(len(exp_signal),len(simu))
+    print(len(exp_signal),len(simu),cell)
     exp_signal *= rescale
 
     l = None
@@ -425,7 +425,8 @@ def sm(ser, sc): return np.array(pd.Series(ser).rolling(
 
 def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile=85, cell="K562",
                  cellMRT=None, cellRFD=None, nanpolate=False, fsmooth=None, gsmooth=5,
-                 recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",rfd_only=False):
+                 recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",
+                 rfd_only=False,exp4=False,oli=False):
 
     rpol = resolution_polarity
 
@@ -439,10 +440,14 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
                                           start=start, end=end, resolution=rpol, raw=False, pad=True)
         if "Yeast" in cellMRT:
             resolution = 1
-        else:
-            resolution = 10
+        elif cell in ["K562","Hela","GM","HeLa","HeLaS3","Gm12878"]:
 
-        if not rfd_only:
+            resolution = 10
+        else:
+            resolution=resolution_polarity
+
+        #print(cell)
+        if (not rfd_only) or exp4:
             x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
                                               start=start, end=end, resolution=resolution, raw=False)
         else:
@@ -480,12 +485,14 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
         ratio_res = 1
 
     if not rfd_only:
+        """
         for delta in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8][::-1]:
 
             c1 = nmrt > delta
-            Smpol[c1] = np.array(sm(Smpol, gsmooth))[c1]
+            Smpol[c1] = np.array(sm(Smpol, gsmooth))[c1]"""
 
-        Smpol = sm(Smpol, 3)
+        Smpol = sm(Smpol, 5)
+
     else:
         Smpol = sm(Smpol, 10)
 
@@ -514,8 +521,18 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
                 if ok0 + 0.05 > ok2:
                     delta[i] = 0  # shifted from one on purpose
                     delta[i+1] = 0
-    if not rfd_only:
-        delta *= mapboth(np.exp(-exp_factor * mrt_exp), delta, ratio_res, pad=True)
+    if (not rfd_only) or exp4:
+        #
+        if oli:
+            #delta = -np.log(1-delta/2)/ mapboth(mrt_exp, delta, ratio_res, pad=True)
+            delta = delta/ (mapboth(mrt_exp, delta, ratio_res, pad=True)+0.05)
+
+        else:
+            delta *= mapboth(np.exp(-exp_factor * mrt_exp), delta, ratio_res, pad=True)
+        print(exp_factor,mrt_exp[:15])
+        print(len(delta),len(mrt_exp))
+        print("here dela")
+
 
     delta[np.isnan(delta)] = 0
 

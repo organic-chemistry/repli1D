@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import glob
 import pprint
+from scipy.signal import find_peaks
+
 try:
     import pyBigWig
     import gffutils
@@ -59,7 +61,7 @@ def is_available(strain, experiment):
     avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2", "ExpGenes", "Faire", "Meth", "Meth450",
                  "Constant", "OKSeqF", "OKSeqR", "OKSeqS", "CNV", "NFR",
                  "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1","AT_20","AT_5","AT_30","RHMM","MRTstd",
-                 "RNA_seq"]
+                 "RNA_seq","MCMo","MCMp","MCM-beda","Mcm3","Mcm7","Orc2","Orc3"]
     marks = ['H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
@@ -82,6 +84,10 @@ def is_available(strain, experiment):
             for iexp,exp in enumerate(exps):
                 if exp == experiment:
                     return True,[files[iexp]],int(resolutions[0].replace("kb",""))
+    if strain in ["Cerevisae"] and experiment =="MCM-beda":
+        lroot = ROOT+"/external/Yeast-MCM-bedalov/"
+
+        return True,glob.glob(lroot+"/*"),0.001
 
     if experiment not in avail_exp + marks + Prot + marks_bw:
         print("Exp %s not available" % experiment)
@@ -94,10 +100,12 @@ def is_available(strain, experiment):
 
         if strain == "Cerevisae":
             return True, ["/home/jarbona/ifromprof/notebooks/exploratory/Yeast_wt_alvino.csv"], 1
+        elif strain == "Raji":
+            files = glob.glob(ROOT + "/external/timing_final//*_Nina_Raji_logE2Lratio_w100kbp_dw10kbp.dat" )
+            return True, files, 10
         else:
             root = ROOT + "/Data/UCSC/hsap_hg19/downloads/ENCODE/wgEncodeUwRepliSeq_V2/compute_profiles/timing_final/"
             root = ROOT + "/external/timing_final/"
-
             extract = glob.glob(root + "/*Rep1_chr10.dat")
             cells = [e.split("_")[-3] for e in extract]
             if strain in cells:
@@ -166,7 +174,20 @@ def is_available(strain, experiment):
         if strain in cells:
             files = glob.glob(root + strain + ".bed")
             files.sort()
-            return True, files, 1
+            return True, files,
+
+    if (experiment in ["Mcm3","Mcm7","Orc2","Orc3"]) and strain =="Raji":
+        return True,glob.glob(ROOT+"/external/nina_kirstein/*_"+experiment+"_G1_1kbMEAN.txt") ,1
+
+    if experiment in ["MCM","MCMp"]:
+            #print("LA")
+        if strain != "Hela":
+            return False,[],1
+        root = ROOT + "/external/MCM2-bed/R1/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.txt")
+        #print(extract)
+        return True, extract, 1
 
     if experiment == "Ini":
         root = ROOT + "/external/ini/"
@@ -205,8 +226,8 @@ def is_available(strain, experiment):
             return False, [], 1
         return True, extract, 1
 
-    if experiment == "MCM":
-        if strain not in ["HeLa", "HeLaS3"]:
+    if experiment == "MCMo":
+        if strain not in ["HeLa", "HeLaS3","Hela"]:
             print("Wrong strain")
             print("Only", "HeLa", "HeLaS3")
             raise
@@ -451,6 +472,7 @@ def re_sample(x, y, start, end, resolution=1000):
     # print(data)
     # print(resampled.shape)
     for p, v in zip(x, y):
+        #print(v)
         if not np.isnan(v):
             posi = int((p - start) / resolution)
             if np.isnan(resampled[min(posi, len(resampled) - 1)]):
@@ -595,6 +617,17 @@ def replication_data(strain, experiment, chromosome,
         filename = experiment
 
 
+    if os.path.exists(strain) and strain.endswith("csv"):
+        #print(strain)
+        data=pd.read_csv(strain)
+        #print(len(data))
+        sub = data[data.chr==chromosome][experiment]
+        y = np.array(sub[int(start/resolution):int(end/resolution)])
+        print("Sizes",chromosome,len(sub),int(end/resolution))
+        return np.arange(len(y))*resolution + start,y
+        #chn = list(set(data.chr))
+
+
     if experiment.endswith("weight"):
         from repli1d.retrieve_marks import norm2
         with open(experiment, "rb") as f:
@@ -670,7 +703,7 @@ def replication_data(strain, experiment, chromosome,
                 chromosome = int_to_roman(int(chromosome))
             if end is None:
                 end = int(cell.chroms()['chr%s' % str(chromosome)] / 1000)
-            print(start * 1000, end * 1000, int((end - start) / (resolution)))
+            #print(start * 1000, end * 1000, int((end - start) / (resolution)))
 
             #Check the end:
             endp = end
@@ -719,11 +752,11 @@ def replication_data(strain, experiment, chromosome,
                 # print(int(chromosome))
                 chro = int_to_roman(int(chromosome))
 
-            print(strain)
+            #print(strain)
             data = strain[(strain.chrom == "chr%s" % chro) & (
                 strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
             #print("La")
-            print(data)
+            #print(data)
             if oData:
                 return data
 
@@ -760,15 +793,32 @@ def replication_data(strain, experiment, chromosome,
             if "chrom" not in strain.columns:
                 strain = pd.read_csv(files[0], sep=",")
                 # print(strain)
-                tmpl = "chrom%s"
+                #tmpl = "chrom%s"
                 f = 1
                 # strain.chrom
-            # data
-            # print(strain.describe())
+            # sanitize chrom:
+            def sanitize(ch):
+                if type(ch) == int:
+                    return "chr%s"%ch
+                if type(ch) == str:
+                    if "chrom" in ch:
+                        return ch.replace("chrom","chr")
+                    if (not "chr" in ch) and (not "chrom" in ch):
+                        return "chr%s"%ch
+                    return ch
+
+            strain["chrom"] = [sanitize(ch) for ch in strain["chrom"]]
+
+
+            #print(strain.describe())
+            #print(strain.head())
+            #print( tmpl % chro)
+            #print("F",f)
             data = strain[(strain.chrom == tmpl % chro) & (
                 strain.chromStart >= f * start) & (strain.chromStart < f * end)]
             #print("Warning coold shift one")
-            #print(data)
+            #print("Data",len(data))
+
             if oData:
                 return data
 
@@ -778,6 +828,9 @@ def replication_data(strain, experiment, chromosome,
                     signame = "signal"
                     print("Warning changing signalValue to signal")
             y = np.array(data[signame])
+            #print(x[:10])
+            #print(y[:10])
+            #print(start,end)
             #print(chro,np.mean(y),len(y))
             return re_sample(x, y, start, end, resolution)
 
@@ -815,6 +868,36 @@ def replication_data(strain, experiment, chromosome,
             return x, y
         else:
             return re_sample(x, y, start, end, resolution)
+
+    if experiment in ["MCM","MCMp"]:
+        #print(chromosome)
+        files = [f for f in files if "chr%i."%chromosome in f]
+        #print(files)
+        files += [f.replace("R1","R2") for f in files]
+        #print(files)
+        data = np.sum([np.array(pd.read_csv(f))[:,0] for f in files],axis=0)
+
+        x = np.arange(len(data))  # kb
+        sub = (x> start) & (x < end)
+
+        x=x[sub]
+        y = np.array(data[sub],dtype=np.float)
+
+        x,y = re_sample(x, y, start, end, resolution)
+        if experiment == "MCMp":
+            print(np.nanpercentile(y,50))
+            peaks, _ = find_peaks(y / np.nanpercentile(y,50),width=1,prominence=1.)
+
+            peaksa = np.zeros_like(y,dtype=np.bool)
+            for p in peaks:
+                peaksa[p]=True
+
+            print(len(y),len(peaks),"Peaks")
+            y[~peaksa]=0
+
+        #raise "NT"
+
+        return  x,y
 
 
     if experiment == "DNaseI":
@@ -873,6 +956,26 @@ def replication_data(strain, experiment, chromosome,
 
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.signalValue)
+
+    if "MCM-beda" in experiment:
+
+            #print(files[0])
+            strain = pd.read_csv(files[0],sep="\t")
+            #strain.MCM = smooth(strain.MCM2_ChEC)
+            chromosome = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
+                          11: "XI", 12: "XII", 13: "XIII", 14: "XIV", 15: "XV", 16: "XVI"}[chromosome]
+            #print(chromosome)
+            #print(strain)
+            data = strain[(strain.chr == "chr%s" % chromosome) & (
+                strain.coord > 1000 * start) & (strain.coord < 1000 * end)]
+            #print(data)
+            if oData:
+                return data
+
+            x = np.array(data.coord) / 1000  # kb
+            #y = np.array(data.cerevisiae_MCM2ChEC_rep1_library_fragment_size_range_51bpto100bp)
+            y = np.array(data.cerevisiae_MCM2ChEC_rep1_library_fragment_size_range_all)
+
 
 
     if "G4" in experiment:
@@ -1085,6 +1188,27 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.ones_like(x)
 
+    if (experiment in ["Mcm3","Mcm7","Orc2","Orc3"]) and strain =="Raji":
+        print(files)
+        for f in files:
+            if "chr%s_" % str(chromosome) in f:
+                # print(f)
+                data = pd.read_csv(f)
+                input = pd.read_csv(f.replace(experiment,"input"))
+                break
+
+        data=np.array(data[start:end],dtype=float)[::,0]
+        input = np.array(input[start:end],dtype=float)[::,0]
+        print(data.shape)
+        print(data)
+        x=np.arange(start,end)
+        x0,data = re_sample(x, data, start, end, resolution)
+        _,input = re_sample(x, input, start, end, resolution)
+        data = data/input
+        data[input<10]=np.nan
+        return x0,data
+
+
     if experiment == "SNS":
         if strain == "K562":
             index = ["chrom", "chromStart", "chromEnd"]
@@ -1113,12 +1237,12 @@ def replication_data(strain, experiment, chromosome,
             x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
             y = data.signalValue
 
-    if experiment == "MCM":
+    if experiment == "MCMo":
 
         index = ["chrom", "chromStart", "chromEnd"]
         chro = str(chromosome)
         print(files)
-        strain = pd.read_csv(files[0], sep="\t", names=index, skiprows=1)
+        strain = pd.read_csv(files[0], sep="\t", names=index)
 
         data = strain[(strain.chrom == "chr%s" % chro) & (
             strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
@@ -1128,6 +1252,7 @@ def replication_data(strain, experiment, chromosome,
 
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.ones_like(x)
+        print(sum(y), len(y))
 
     if experiment == "Meth":
 
@@ -1181,6 +1306,8 @@ def replication_data(strain, experiment, chromosome,
 
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array([1 for _ in range(len(x))])
+
+
 
     if experiment == "ExpGenes":
 
@@ -1331,14 +1458,20 @@ def replication_data(strain, experiment, chromosome,
             # return ,
 
         else:
-
+            #print(files)
             for f in files:
                 if "Rep1" in f and "chr%s.dat" % str(chromosome) in f:
                     # print(f)
                     data = pd.read_csv(f)
 
                     break
-
+                elif (strain == "Raji") and "chr%s_" % str(chromosome) in f:
+                    print(f)
+                    data = pd.read_csv(f)
+                    data=2**data
+                    #data=np.exp(data)/35
+                    break
+            #print(len(data))
             data[data < 0] = np.nan
             data = np.array(data)
             data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data]) # Because centered at 5 kb
@@ -1403,9 +1536,9 @@ def replication_data(strain, experiment, chromosome,
                 data = pd.read_csv(f, names=["R"])
                 break
             if experiment == "OKSeqF" and "chr%s.F" % str(chromosome) in f:
-                data = pd.read_csv(f, names="F")
+                data = pd.read_csv(f, names=["F"])
                 break
-        if experiment in ["OKSeqS", "OKSeq"]:
+        if experiment in ["OKSeqS", "OKSeq","OKSeqF","OKSeqR"]:
             for f in files:
 
                 if "chr%s.F" % str(chromosome) in f:
@@ -1421,13 +1554,31 @@ def replication_data(strain, experiment, chromosome,
             if experiment == "OKSeqS":
                 x = np.arange(start, end, 1)
                 y = np.array(data1[start: end].F + data2[start: end].R)
-            else:
+            elif experiment == "OKSeq":
+                #med = np.median(np.array(data1[start: end].F + data2[start: end].R))
                 x = np.arange(start, end, 1)
-                x0, R = re_sample(x, data2[start: end].R, start, end, resolution)
-                x0, F = re_sample(x, data1[start: end].F, start, end, resolution)
+                subR = data2[start: end].R
+                #subR[subR<10]=np.nan
+                subF = data1[start: end].F
+                #subF[subF<10]=np.nan
+
+                x0, R = re_sample(x, subR, start, end, resolution)
+                x0, F = re_sample(x, subF, start, end, resolution)
                 RFD = (R-F)/(R+F) * resolution
-                RFD[R+F < 10] = np.nan
+                med = np.median(R + F)/2
+                #print(med)
+                RFD[R < med/10] = np.nan
+                RFD[F <  med/10] = np.nan
+                #print("Nan",np.sum(np.isnan(RFD)))
                 return x0, RFD
+            elif experiment in ["OKSeqF", "OKSeqR"]:
+                if experiment == "OKSeqF":
+                    x = np.arange(start, end, 1)
+                    y = np.array(data1[start: end].F)
+                else:
+                    x = np.arange(start, end, 1)
+                    y = np.array(data2[start: end].R)
+                return x,y
 
         else:
             # data[data<0] = np.nan

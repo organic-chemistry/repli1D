@@ -2,7 +2,6 @@
 
 
 from repli1d.analyse_RFD import detect_peaks, compare, smooth, mapboth, get_codire, cut_larger_than
-from repli1d.profile_generation import  generate_slow_background, generate_group_genes
 from repli1d.fast_sim import get_fast_MRT_RFDs
 from repli1d.expeData import replication_data
 from repli1d.single_mol_analysis import compute_info, compute_real_inter_ori ,compute_mean_activated_ori
@@ -19,9 +18,9 @@ import json
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('--start', type=int, default=8000)
-parser.add_argument('--end', type=int, default=120000)
-parser.add_argument('--ch', type=int, default=1)
+parser.add_argument('--start', type=int, default=8000) # in kb
+parser.add_argument('--end', type=int, default=120000) # in kb
+parser.add_argument('--ch', type=str, default="1")
 parser.add_argument('--resolution', type=int, default=5)
 parser.add_argument('--resolutionpol', type=int, default=5)
 parser.add_argument('--ndiff', type=float, default=60)
@@ -52,7 +51,7 @@ parser.add_argument('--nMRT', type=int, default=6)
 
 parser.add_argument('--smoothw', type=int, default=None)
 
-parser.add_argument('--fspeed', type=float, default=.3)  # time to go on one bin
+parser.add_argument('--fspeed', type=float, default=.3)  # fork_speed/resolution
 parser.add_argument('--comp', type=str, default=None)
 parser.add_argument('--recomp', action="store_true")
 parser.add_argument('--wholecell', action="store_true")
@@ -69,7 +68,7 @@ parser.add_argument('--stalling',type=str,default=None)
 parser.add_argument('--expbg',  action="store_true")
 parser.add_argument('--randomlarge',  action="store_true")
 parser.add_argument('--filter_termination',type=int,default=None)
-parser.add_argument('--introduction_time',type=int,default=None)
+parser.add_argument('--introduction_time',type=float,default=None)
 parser.add_argument('--randomprofile', type=float, default=0)  # time to go on one bin
 parser.add_argument('--reverse_profile',  action="store_true")
 parser.add_argument('--extra_param',type=str,default=None)
@@ -77,6 +76,11 @@ parser.add_argument('--remove_neg',  action="store_true")
 parser.add_argument('--correct_activation',  action="store_true")
 parser.add_argument('--exclude_noise_save',  action="store_true")
 parser.add_argument('--datafile',type=str,default=None)
+parser.add_argument('--no_noise',action="store_true")
+parser.add_argument('--take_five',action="store_true")
+parser.add_argument('--OE2IE',action="store_true")
+parser.add_argument('--mrt_res',type=int,default=10)
+parser.add_argument('--masking',type=int,default=200)
 
 
 # Cell is use to get signal
@@ -87,6 +91,10 @@ args = parser.parse_args()
 start = args.start
 end = args.end
 ch = args.ch
+try:
+    ch=int(ch)
+except:
+    pass
 cell = args.cell
 resolution_polarity = args.resolutionpol
 resolution = args.resolution
@@ -102,11 +110,18 @@ noise = args.noise
 if args.extra_param != None:
     with open(args.extra_param,"r") as f:
         param = json.load(f)
+        if param == {}:
+            print("Parameter from optimisation is empty")
+            print("It means that no simulation are satisfying the constraint")
+            print("in term of time of S-phase")
+            raise
         ndiff = param["ndiff"]
         noise = param["noise"]
 
         print("Extra",ndiff,noise)
 
+if args.no_noise:
+    noise=0
 
 if comp is None:
     comp = cell
@@ -125,25 +140,39 @@ if args.forkseq:
 tot_diff = 0
 if not args.wholecell:
     list_task = [[start, end, ch, int(ndiff)]]
+    #print(list_task)
+    #exit()
     tot_diff += list_task[0][-1]
+    if args.datafile != None:
+        strain = args.datafile
+        cell=args.datafile
+        comp=cell
+        cellseq=cell
+    chn=[ch]
 else:
 
-    if "Yeast" not in cell:
+    if args.datafile != None:
+        strain = args.datafile
+        cell=args.datafile
+        data=pd.read_csv(args.datafile)
+        chn = list(set(data.chr))
+        chromlength = [sum(data.chr==ch)*args.resolution*1000 for ch in chn]
+        print(chromlength)
+        #exit()
+        comp=cell
+        cellseq=cell
+    elif  cell not in ["Yeast","Cerevisae"]:
         chromlength = [248956422, 242193529, 198295559, 190214555, 181538259,
                        170805979, 159345973, 145138636, 138394717,
                        133797422, 135086622, 133275309, 114364328, 107043718,
                        101991189, 90338345, 83257441,
                        80373285, 58617616, 64444167, 46709983, 50818468]
         chn = range(1, len(chromlength) + 1)
-    elif "Yeast" in cell:
+    elif cell in ["Yeast","Cerevisae"]:
         index = pd.read_csv("../DNaseI/data/external/Yeast-MCM/1kb/index.csv",sep="\t")
         chromlength = [np.sum(index.chrom == "chr%i" %i)*1000 for i in range(1,17)]
         chn = range(1, len(chromlength) + 1)
-        print(chromlength)
-    elif args.datafile != None:
-        data=pd.read_csv(args.datafile)
-        chn = list(set(data.chr))
-        chromlength = [len(data.chr==ch)*args.resolution for ch in chn]
+        #print(chromlength)
 
 
     if args.nntest:
@@ -151,7 +180,7 @@ else:
         chn = chn[-2:]
     list_task = []
     for ich,(ch, l) in enumerate(zip(chn, chromlength)):
-        print(ch, l)
+        #print(ch, l)
         Start = 0
         End = l//1000
         list_task.append([Start, End, ch, int(ndiff*End/1000)])
@@ -161,7 +190,7 @@ else:
             break
 
 
-print(noise)
+#print(noise)
 
 GData = []
 
@@ -172,26 +201,35 @@ gMRTe = []
 gRFDe = []
 codire = []
 d3pl = []
-
+oe2ie=False
 dir = os.path.split(args.name)[0]
 if dir != '':
     os.makedirs(dir, exist_ok=True)
 
 for start, end, ch, ndiff in list_task:
 
-    name_w = args.name+"_%i_%i_%i" % (ch, start, end)
+    name_w = args.name+"_%s_%i_%i" % (str(ch), start, end)
 
-    if args.signal in ["peak","peakRFDonly"]:
-        print("Percentile", percentile, args.recomp, args.gsmooth, args.dec, args.smoothpeak)
+    if args.signal in ["peak","peakRFDonly","exp4","oli"]:
+        #print("Percentile", percentile, args.recomp, args.gsmooth, args.dec, args.smoothpeak)
         rfd_only=False
-        if args.signal == "peakRFDonly":
+        if args.signal in ["peakRFDonly","exp4"]:
             rfd_only=True
+        exp4=False
+        if args.signal == "exp4":
+            exp4=True
+        oli=False
+        if args.signal == "oli":
+            oli=True
+            print("Warnin setting percentile at 85")
+        print("Cell",start,end,cell)
+
         x, d3p = detect_peaks(start, end, ch,
                               resolution_polarity=resolution_polarity,
                               exp_factor=exp_factor,
                               percentile=percentile, cell=cell, cellMRT=comp, cellRFD=cellseq, nanpolate=True,
                               recomp=args.recomp, gsmooth=args.gsmooth, dec=args.dec, fsmooth=args.smoothpeak,
-                              expRFD=expRFD,rfd_only=rfd_only)
+                              expRFD=expRFD,rfd_only=rfd_only,exp4=exp4,oli=oli)
 
         if resolution != resolution_polarity:
             x, d3p0 = detect_peaks(start, end, ch,
@@ -227,7 +265,7 @@ for start, end, ch, ndiff in list_task:
 
             d3p[np.isnan(d3p)] = 0
             d3p[np.isinf(d3p)] = 0
-            print(np.sum(np.isnan(d3p)))
+            #print(np.sum(np.isnan(d3p)))
             # pylab.plot(d3p)
             # pylab.show()
 
@@ -290,14 +328,29 @@ for start, end, ch, ndiff in list_task:
 
                 d3p[iv] = d3p0[iv] /np.nansum(d3p0[max(0,iv-40):min(iv+40,len(d3p)-1)])"""
 
+    elif args.signal == "flat":
+        x, d3p0 = replication_data(cell, "OKSeq", chromosome=ch,
+                                          start=start, end=end,
+                                          resolution=resolution, raw=False, smoothf=args.smoothw)
+
+        d3p=np.ones_like(d3p0)
+        oe2ie=True
 
 
 
     else:
-        x, d3p = replication_data(cell, args.signal, chromosome=ch,
+        cellt=cell
+        if args.datafile != None:
+            cellt="None"
+        x, d3p = replication_data(cellt, args.signal, chromosome=ch,
                                   start=start, end=end,
                                   resolution=resolution, raw=False, smoothf=args.smoothw)
-
+        #import pylab
+        #print(len(d3p))
+        #print("D3psize",d3p)
+        #pylab.figure()
+        #pylab.plot(x,d3p)
+        #pylab.savefig("tmp.pdf")
         if args.correct:
 
             x, CNV = replication_data(cell, "CNV", chromosome=ch,
@@ -312,7 +365,6 @@ for start, end, ch, ndiff in list_task:
     if std == 0:
         std = 1
     d3p = norm2(d3p, mean=1, std=std, cut=15)[0]
-
 
 
     if args.expbg:
@@ -364,11 +416,12 @@ for start, end, ch, ndiff in list_task:
         #d3p = np.zeros_like(d3p)
         for i in np.random.choice(range(len(d3p)),10):
             size = np.random.randint(20,30)
-            print("Adding")
+            #print("Adding")
             d3p[i-size:i+size] +=  signal.gaussian(2*size,std=size//3)  *meanp*np.random.rand()
 
 
     if args.randomprofile != 0:
+        #from repli1d.profile_generation import  generate_slow_background, generate_group_genes
 
         #bg = generate_slow_background(np.arange(len(d3p)))
         #d3p = generate_group_genes(bg, coverage=args.randomprofile)
@@ -381,6 +434,30 @@ for start, end, ch, ndiff in list_task:
 
     if args.remove_neg:
         d3p[d3p<= 0] = 0
+
+
+    if (not args.wholecell) and args.take_five:
+        p5=np.percentile(d3p,5)
+        tot = np.sum(d3p)
+        for v in np.arange(0,np.max(d3p),np.max(d3p)/1000):
+            smaller = np.sum( d3p[d3p<=v])
+            if smaller/tot>0.05:
+                d3p[d3p<=v]=0
+                print(v,p5,"Percentile")
+                break
+
+
+    if args.OE2IE or oe2ie:
+        #To get MRT
+        _, mrt_tmp = replication_data(cell, "MRT", chromosome=ch,
+
+                                  start=start, end=end,
+                                  resolution=10, raw=False)
+
+        mb=np.exp(-4*mapboth(mrt_tmp, d3p, 2, pad=True))
+        d3p[~np.isnan(mb)] *= mb[~np.isnan(mb)]
+        #d3p
+
 
     stall = args.stalling
     if stall is not None:
@@ -410,20 +487,13 @@ for start, end, ch, ndiff in list_task:
         stallp = []
 
 
-
     d3pl.append([x, d3p,stallp])
 
 
-if "Yeast" not in cell:
-    mrt_res = 10
-    masking = 200
-    propagateNan = False
-    #ok_seq_res = resolution
-
-else:
-    mrt_res = resolution
-    masking = 25
-    propagateNan = False
+propagateNan=False
+mrt_res=args.mrt_res
+masking=args.masking
+print(mrt_res)
     #ok_seq_res = resolution
 
 lres = []
@@ -433,19 +503,20 @@ Segments = []
 
 
 
-print(d3pl,len(d3pl[0][1]))
+#print(d3pl,len(d3pl[0][1]))
 
 if args.cutholes:
     #Get masks and recompute ndiffs:
     tot_diff = 0
-
+    masks =[]
     for i,((start,end,ch,diff),(x,d3p,stallp)) in enumerate(zip(list_task,d3pl)):
 
         #To get masks
+        print("MRT")
         MRTpearson, MRTstd, MRT, [mask_MRT, l] = compare(
             d3p[::mrt_res // resolution], "MRT", comp, res=mrt_res, ch=ch, start=start, end=end, return_exp=True, trunc=True,
             pad=True, return_mask=True,masking=masking,propagateNan=propagateNan)
-
+        print("RFD")
         RFDpearson, RFDstd, RFD, [mask_RFD, l] = compare(d3p, expRFD, cellseq, res=resolution, ch=ch,
                                                          start=start, end=end, return_exp=True, rescale=1 / resolution,
                                                          trunc=True, pad=True, return_mask=True, smoothf=args.fsmooth,
@@ -454,6 +525,7 @@ if args.cutholes:
         mask_MRTh = mapboth(mask_MRT,mask_RFD,2,pad=True)
 
         whole_mask = mask_MRTh & mask_RFD
+        masks.append(whole_mask)
 
         segment = cut_larger_than(whole_mask,args.cutholes//resolution)
         Segments.append(segment)
@@ -478,6 +550,7 @@ if args.cascade:
 else:
     cascade = args.cascade
 
+Mask =[]
 if not args.experimental:
     # Independent simulation for each chromosome
     from repli1d.fast_sim import get_fast_MRT_RFDs
@@ -491,7 +564,7 @@ if not args.experimental:
             fork_speed=fork_speed, dori=args.dori*5/resolution, single_mol_exp=args.single, continuous=args.continuous, cascade=cascade))
     #print("check", np.sum(d3p), np.sum(np.ones_like(d3p)*np.sum(d3p)*0.1/len(d3p)))
 
-        print("End Simeeeeuuuuuuuuuuuuuuuuuuuu")
+        #print("End Simeeeeuuuuuuuuuuuuuuuuuuuu")
 else:
     from repli1d.fast_sim_break import get_fast_MRT_RFDs
 
@@ -511,6 +584,7 @@ else:
         breaks = []
         shift = 0
         tot_diff = 0
+        bigmask = np.ones_like(bigch)
         sp = []  # To split the result
         for (start, end, ch, ndiff), [x, d3p,stallp] in zip(list_task, d3pl):
             breaks.append([shift, shift+len(d3p)])
@@ -521,13 +595,13 @@ else:
     else:
         bigch = []
         bigstallp = []
-
+        Mask=[]
         breaks = []
         shift = 0
         tot_diff = 0
         sp = []  # To split the result
         split_ch = []
-        for index_ch,((start, end, ch, ndiff), [x, d3p,stallp],segment) in enumerate(zip(list_task, d3pl,Segments)):
+        for index_ch,((start, end, ch, ndiff), [x, d3p,stallp],segment,whole_mask) in enumerate(zip(list_task, d3pl,Segments,masks)):
             for start_seg, end_seg, keep in zip(segment["start"], segment["end"], segment["keep"]):
                 size_seg = end_seg-start_seg
                 if keep:
@@ -535,6 +609,7 @@ else:
                     sp.append(shift + size_seg)
                     shift += size_seg
                     bigch.append(d3p[start_seg:end_seg])
+                    Mask.append(whole_mask[start_seg:end_seg])
                     if stall is not None:
                         bigstallp.append(stallp[start_seg:end_seg])
 
@@ -546,20 +621,36 @@ else:
                          np.zeros_like(d3p)+np.nan,None,[],[],[],
                          np.zeros_like(d3p)+np.nan,
                          np.zeros_like(d3p)+np.nan,[],
-                         np.zeros_like(d3p)+np.nan,[],[]])
+                         np.zeros_like(d3p)+np.nan,[],[],np.zeros_like(d3p)+np.nan])
         bigch = np.concatenate(bigch)
+        bigmask=np.concatenate(Mask)
         if stall is not None:
             bigstallp = np.concatenate(bigstallp)
 
-    print(bigstallp)
+    #print(bigstallp)
 
     if args.reverse_profile:
         bigch = np.max(bigch) - bigch
 
 
+
     d3p = bigch
+
+    if args.wholecell and args.take_five:
+        p5=np.percentile(d3p,5)
+        tot = np.sum(d3p)
+        for v in np.arange(0,np.max(d3p),np.max(d3p)/1000):
+            smaller = np.sum( d3p[d3p<=v])
+            if smaller/tot>0.05:
+                d3p[d3p<=v]=0
+                print(v,p5,"Percentile")
+                #exit()
+                break
     noiselevel = np.sum(d3p)*noise/len(d3p)
     d3p += np.ones_like(d3p) * noiselevel
+    early_over_late = False
+    if cell == "Raji":
+        early_over_late = True
     res = get_fast_MRT_RFDs(
         nsim, d3p, tot_diff, kon=kon,
         fork_speed=fork_speed, dori=args.dori*5/resolution,
@@ -567,22 +658,27 @@ else:
         cascade=cascade, breaks=breaks, n_jobs=args.n_jobs,
         binsize=resolution,timespend=bigstallp,nMRT=args.nMRT,
         filter_termination=args.filter_termination,
-        introduction_time=args.introduction_time,correct_activation=args.correct_activation)
+        introduction_time=args.introduction_time,correct_activation=args.correct_activation,
+        mask=bigmask,early_over_late=early_over_late)
     from IPython.core.debugger import set_trace
 
     MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, \
         It , Pa, Pt ,Time,MRTstd,Free,Nfork,MRTsingle,T99,T95 = res
 
-    print("Sum",np.sum(Pt))
+    if Mask == []:
+        Mask = [1]*len(d3pl)
+    #print("Sum",np.sum(Pt))
     if args.cutholes is None:
-        for MRTp, MRTs, RFDs,Pas,Pts, [x, d3ps,stallp],MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
+        for MRTp, MRTs, RFDs,Pas,Pts, [x, d3ps,stallp],MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp),
+                                                                 np.split(RFDs_big, sp),
                                                np.split(Pa,sp),np.split(Pt,sp), d3pl,np.split(MRTstd,sp)):
-            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time,MRTstds,Free,Nfork])
+            lres.append([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It,Pas,Pts,Time,MRTstds,
+                        Free,Nfork,np.ones_like(MRTp)])
     else:
 
-        for MRTp, MRTs, RFDs,Pas,Pt, split, MRTstds in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
+        for MRTp, MRTs, RFDs,Pas,Pt, split, MRTstds,mask in zip(np.split(MRTp_big, sp), np.split(MRTs_big, sp), np.split(RFDs_big, sp),
                                                np.split(Pa,sp),np.split(Pt,sp),
-                                               split_ch,np.split(MRTstd,sp)):
+                                               split_ch,np.split(MRTstd,sp),np.split(bigmask,sp)):
             start_seg, end_seg, ch = split
 
             lres[ch ][0][start_seg:end_seg] = MRTp
@@ -591,6 +687,8 @@ else:
             lres[ch][7][start_seg:end_seg] = Pas
             lres[ch][8][start_seg:end_seg] = Pt
             lres[ch][10][start_seg:end_seg] = MRTstds
+            lres[ch][13][start_seg:end_seg] = mask
+
 
             if lres[ch][3] is None:
                 # first peace:
@@ -621,10 +719,11 @@ else:
         # set_trace()
         #
 
-for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres):
-    name_w = args.name+"_%i_%i_%i" % (ch, start, end)
 
-    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx,Free,Nfork = res
+for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres):
+    name_w = args.name+"_%s_%i_%i" % (str(ch), start, end)
+
+    MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx,Free,Nfork,mask = res
     if args.save and ch==1:
         with open(args.name+"alldat.pick", "wb") as f:
             #pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
@@ -641,7 +740,8 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
         MRTp[::mrt_res // resolution], "MRT", comp, res=mrt_res, ch=ch, start=start,
         end=end, return_exp=True, trunc=True,
         pad=True, return_mask=True,masking=masking,propagateNan=propagateNan)
-    print(len(MRT), len(MRTp[::mrt_res // resolution]), "LEN")
+    print(MRT,mrt_res)
+    #print(len(MRT), len(MRTp[::mrt_res // resolution]), "LEN")
     gMRT.append(MRTp[::mrt_res // resolution][:l][mask_MRT])
     gMRTe.append(MRT[:l][mask_MRT])
     RFDpearson, RFDstd, RFD, [mask_RFD, l] = compare(RFDs, expRFD, cellseq, res=resolution, ch=ch,
@@ -678,24 +778,33 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     if len(stallp) ==0:
         stallps = np.ones_like(d3ps)
 
+    if args.datafile != None:
+        correct_scale=1000
+    else:
+        correct_scale=1
+
     if type(GData) == list:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
 
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTs)])
         #print(ml,len(Pa),len(MRT),len(MRTs),len(RFDs))
-        GData = pd.DataFrame({"chrom": ["chrom%i" % ch]*ml, "chromStart": x[:ml], "chromEnd": x[:ml], "RFDe": RFD[:ml],
+        GData = pd.DataFrame({"chrom": ["chrom%s" % str(ch)]*ml, "chromStart": x[:ml]*correct_scale,
+                             "chromEnd": x[:ml]*correct_scale, "RFDe": RFD[:ml],
                               "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
-                              "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml]})
+                              "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml],"mask":mask[:ml]})
     else:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTp)])
-        GDatab = pd.DataFrame({"chrom": ["chrom%i" % ch]*ml, "chromStart": x[:ml], "chromEnd": x[:ml], "RFDe": RFD[:ml],
+        GDatab = pd.DataFrame({"chrom": ["chrom%s" % str(ch)]*ml, "chromStart": x[:ml]*correct_scale,
+                                "chromEnd": x[:ml]*correct_scale, "RFDe": RFD[:ml],
                                "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
-                               "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml]})
+                               "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml],"mask":mask[:ml]})
 
         GData = pd.concat([GData, GDatab], axis=0)
 
-    print(MRTpearson, MRTstd, RFDpearson, RFDstd)
+    #print(f"MRT pearson:{MRTpearson[0]:.2f}, MRT std: {MRTstd}, RFDpearson: {RFDpearson[0]:.2f}, RFD std: {RFDstd}")
+    print("MRT pearson:%.2f, MRT std: %.2f, RFDpearson: %.2f, RFD std: %.2f"%(MRTpearson[0],MRTstd,RFDpearson[0],RFDstd))
+    #print(Rept_time)
     print("Rep time (h)", np.mean(Rept_time)/60)
 
     mean_activated_ori = compute_mean_activated_ori(pos_time_activated_ori)
@@ -719,8 +828,8 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     if args.single:
         # print(single_mol_exp)
         import pickle
-        if ch == 1:
-            with open(args.name+"Single_mol_ch1.pick","wb") as f:
+        if ch == chn[0]:
+            with open(args.name+"Single_mol_ch%s.pick"%str(ch),"wb") as f:
                 pickle.dump(single_mol_exp,f)
         Deltas0 = compute_info(Sme=single_mol_exp, size_single_mol=int(
             200/resolution), n_sample=200)
@@ -767,10 +876,16 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
         mask_MRT = mapboth(mask_MRT, MRT, int(mrt_res/resolution), pad=True)
         if "Yeast" in  cell:
             #print("La")
-            ToSee = [[[1-MRTp, "MRT"], [x, 1 - MRT, "MRTexp"]],
+            ToSee = [[[MRTp, "MRT"], [x, MRT, "MRTexp"]],
                      [[RFD, "RFDExp"], [RFDs, "RFDsim"]]]
         else:
-            ToSee = [[[1-MRTp, "MRT"], [x, 1 - MRT, "MRTexp"]],
+            if cell != "Rajii":
+                MRTdraw =  1 - MRT
+                MRTpdraw = 1-MRTp
+            else:
+                MRTdraw =   MRT
+                MRTpdraw =  MRTp
+            ToSee = [[[MRTpdraw, "MRT"], [x,MRTdraw, "MRTexp"]],
                      [[RFD, "RFDExp"], [RFDs, "RFDsim"]], [[smooth(np.abs(RFD-RFDs), 250), "deltasmooth"]]]
         ToSee += [[[x, mask_MRT, "MaskMRT"], [np.array(mask_RFD, dtype=np.int), "MaskRFD"]]]
         # print(len(mask_RFD))
@@ -788,7 +903,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
         if not args.only_one or (args.only_one and ch == 1):
             plotly_blocks(x, ToSee, name=name_w+".html", default="lines")
 
-print(len(GData),len(d3p))
+#print(len(GData),len(d3p))
 GData["signal"] = d3p
 GData.to_csv(args.name+"global_profiles.csv", index=False, float_format="%.4f")
 ldatg.to_csv(args.name+"global_scores.csv", index=False)
@@ -799,7 +914,7 @@ sRFD = np.std(np.concatenate(gRFD) - np.concatenate(gRFDe))
 pMRT = stats.pearsonr(np.concatenate(gMRT), np.concatenate(gMRTe)),
 sMRT = np.std(np.concatenate(gMRT) - np.concatenate(gMRTe))
 meanCodire = np.mean(codire)
-print(args.name+"global_corre.csv")
+print("output",args.name+"global_corre.csv")
 glob = pd.DataFrame({"marks": [args.signal],  "Random": [noise], "Dori": [args.dori*5/resolution],
                      "MRTp": pMRT, "RFDp": pRFD,
                      "MRTstd": [sMRT], "RFDstd": [sRFD],

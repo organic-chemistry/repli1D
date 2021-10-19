@@ -149,6 +149,7 @@ if args.signal != []:
                         d3p = raw
                 #print(weights, "here")
 
+            #print(d3p[:50])
             if args.nan0 and "Exp" not in signal:
 
                 d3p[np.isnan(d3p)] = 0
