@@ -1,6 +1,8 @@
 
 repli1D
 =======
+Code used to simulate replication and to inverse MRT and RFD profiles to obtain
+a Pobrability of Origin Density Lansdcape (PODLS)
 
 
 Install
@@ -18,7 +20,7 @@ conda install plotly
 Description
 ===========
 
-The code for the simulation of the replication is in src/repli1d/fast_sim_break.py
+The code to simulate replication and obtain RFD and MRT, given an input PODLS is in src/repli1d/fast_sim_break.py
 
 example of use are in notebook_demo:
 
