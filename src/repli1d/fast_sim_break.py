@@ -2,7 +2,7 @@ import numpy as np
 import copy
 #np.random.seed(0)
 nc = 0
-import pylab
+#import pylab
 
 
 def comupute_enhanced(proba, actual_pos,cascade={}):
@@ -118,7 +118,7 @@ class Chrom:
     def __init__(self,start,end,timespend=[]):
         self.start = start
         self.end = end
-        self.actual_pos = []
+        self.actual_pos = []  # Positions of the forks
         self.list_events = []
         self.delta = []
         self.rfd = np.zeros(end-start)
@@ -608,7 +608,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
     introduced=False
     #print("There")
-    while sum( [len(chrom.actual_pos) for chrom in list_chrom]) != 0:
+    while (sum( [len(chrom.actual_pos) for chrom in list_chrom]) != 0) or np.any(proba!=0) :
         if avail > diff:
             print(avail,diff,time)
 
@@ -729,7 +729,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             kattach = 1/next_attach_time
 
             if introduction_time != None and tot_introduced <= diff:
-                kaddN = diff/introduction_time * np.exp(-time / fork_speed(time)/introduction_time)
+                kaddN = diff/introduction_time * np.exp(-time / fork_speed(time)/introduction_time) #Ok for time unit
             else:
                 kaddN = 0
 
@@ -1057,7 +1057,11 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
     MRTp = np.zeros_like(MRTs[0])
     MRTpstd = np.zeros((len(MRTs[0]),nMRT))
 
+
+
     for MRT in MRTs:
+        if np.any(np.isnan(MRT)):
+            MRT[np.isnan(MRT)]=np.nanmax(MRT)
         percentils = np.percentile(MRT, dp)
         for ip, (p1, p2) in enumerate(zip(percentils[:-1], percentils[1:]), 1):
             MRTp[(MRT > p1) & (MRT <= p2)] += ip/n
@@ -1065,7 +1069,8 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
         MRTp[MRT == 0] += 1/n
         MRTpstd[MRT == 0,0] += 1
 
-    MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
+    #MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
+    MRT_normed = MRTp/nsim - 1/(2*n)
     MRTpstd = MRTpstd / nsim
 
     if early_over_late:

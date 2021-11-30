@@ -8,13 +8,19 @@ from repli1d.single_mol_analysis import compute_info, compute_real_inter_ori ,co
 from repli1d.retrieve_marks import norm2
 import sys
 from repli1d.visu_browser import plotly_blocks
-import pylab
+#import pylab
 import numpy as np
 import pandas as pd
 from scipy import stats
 import pickle
 import os
 import json
+import re
+
+def _human_key(key):
+    parts = re.split('(\d*\.\d+|\d+)', key)
+    return tuple((e.swapcase() if i % 2 == 0 else float(e))
+            for i, e in enumerate(parts))
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -24,7 +30,7 @@ parser.add_argument('--ch', type=str, default="1")
 parser.add_argument('--resolution', type=int, default=5)
 parser.add_argument('--resolutionpol', type=int, default=5)
 parser.add_argument('--ndiff', type=float, default=60)
-parser.add_argument('--dori', type=float, default=20)
+parser.add_argument('--dori', type=float, default=20) # average distance between origin in kb
 parser.add_argument('--percentile', type=int, default=82)
 parser.add_argument('--cell', type=str, default="K562")
 parser.add_argument('--cellseq', type=str, default=None)
@@ -51,7 +57,7 @@ parser.add_argument('--nMRT', type=int, default=6)
 
 parser.add_argument('--smoothw', type=int, default=None)
 
-parser.add_argument('--fspeed', type=float, default=.3)  # fork_speed/resolution
+parser.add_argument('--fspeed', type=float, default=1.5)  # in kb/min
 parser.add_argument('--comp', type=str, default=None)
 parser.add_argument('--recomp', action="store_true")
 parser.add_argument('--wholecell', action="store_true")
@@ -61,7 +67,7 @@ parser.add_argument('--nntest',  action="store_true")
 parser.add_argument('--save',  action="store_true")
 parser.add_argument('--only_one',  action="store_true")  # Onli visu ch1
 
-parser.add_argument("--cutholes",type=int,default=None) #In Mb
+parser.add_argument("--cutholes",type=int,default=None) #In kb
 parser.add_argument('--maxch', type=int, default=None)  #To test whole cell
 parser.add_argument('--forkseq',  action="store_true")
 parser.add_argument('--stalling',type=str,default=None)
@@ -80,7 +86,7 @@ parser.add_argument('--no_noise',action="store_true")
 parser.add_argument('--take_five',action="store_true")
 parser.add_argument('--OE2IE',action="store_true")
 parser.add_argument('--mrt_res',type=int,default=10)
-parser.add_argument('--masking',type=int,default=200)
+parser.add_argument('--masking',type=int,default=200) # in kb
 
 
 # Cell is use to get signal
@@ -106,6 +112,12 @@ ndiff = args.ndiff
 nsim = args.nsim
 comp = args.comp
 noise = args.noise
+
+
+#Rescaling to resolution:
+masking=args.masking // resolution
+#rescaling  forkspeed in lattice unit
+fork_speed =  args.fspeed / resolution
 
 if args.extra_param != None:
     with open(args.extra_param,"r") as f:
@@ -155,19 +167,29 @@ else:
         strain = args.datafile
         cell=args.datafile
         data=pd.read_csv(args.datafile)
-        chn = list(set(data.chr))
-        chromlength = [sum(data.chr==ch)*args.resolution*1000 for ch in chn]
+        chn = list(set(data.chrom))
+        chn=[]
+        for ch in data.chrom:
+            if ch not in chn:
+                chn.append(ch)
+        #chn.sort(key=_human_key)
+        print(chn)
+        chromlength = [sum(data.chrom==ch)*args.resolution*1000 for ch in chn]
         print(chromlength)
         #exit()
         comp=cell
         cellseq=cell
     elif  cell not in ["Yeast","Cerevisae"]:
-        chromlength = [248956422, 242193529, 198295559, 190214555, 181538259,
-                       170805979, 159345973, 145138636, 138394717,
-                       133797422, 135086622, 133275309, 114364328, 107043718,
-                       101991189, 90338345, 83257441,
-                       80373285, 58617616, 64444167, 46709983, 50818468]
-        chn = range(1, len(chromlength) + 1)
+        from repli1d.expeData import chromlength_human
+        chromlength = chromlength_human
+        if os.path.exists(args.signal):
+
+            chn= ['chr%i'%i for i in range(1,23)]
+
+        else:
+            chn = range(1, len(chromlength) + 1)
+        print(chn)
+        print(chromlength)
     elif cell in ["Yeast","Cerevisae"]:
         index = pd.read_csv("../DNaseI/data/external/Yeast-MCM/1kb/index.csv",sep="\t")
         chromlength = [np.sum(index.chrom == "chr%i" %i)*1000 for i in range(1,17)]
@@ -329,11 +351,13 @@ for start, end, ch, ndiff in list_task:
                 d3p[iv] = d3p0[iv] /np.nansum(d3p0[max(0,iv-40):min(iv+40,len(d3p)-1)])"""
 
     elif args.signal == "flat":
-        x, d3p0 = replication_data(cell, "OKSeq", chromosome=ch,
-                                          start=start, end=end,
-                                          resolution=resolution, raw=False, smoothf=args.smoothw)
+        #x, d3p0 = replication_data(cell, "MRT", chromosome=ch,
+        #                                  start=start, end=end,
+    #                                      resolution=resolution, raw=False, smoothf=args.smoothw)
 
-        d3p=np.ones_like(d3p0)
+        x=np.arange(start//resolution,end//resolution,1)*resolution
+        d3p=np.ones_like(np.arange(start//resolution,end//resolution,1),dtype=float)
+
         oe2ie=True
 
 
@@ -449,14 +473,21 @@ for start, end, ch, ndiff in list_task:
 
     if args.OE2IE or oe2ie:
         #To get MRT
+        print(cell)
+        if cell == "Gm12878":
+            tcell="GM12878"
+        else:
+            tcell=cell
         _, mrt_tmp = replication_data(cell, "MRT", chromosome=ch,
 
                                   start=start, end=end,
                                   resolution=10, raw=False)
 
-        mb=np.exp(-4*mapboth(mrt_tmp, d3p, 2, pad=True))
+        mb=np.exp(-6*mapboth(mrt_tmp, d3p, 2, pad=True))
         d3p[~np.isnan(mb)] *= mb[~np.isnan(mb)]
         #d3p
+        print(mrt_tmp)
+        print(d3p)
 
 
     stall = args.stalling
@@ -487,12 +518,13 @@ for start, end, ch, ndiff in list_task:
         stallp = []
 
 
+    #d3p=d3p**3
     d3pl.append([x, d3p,stallp])
 
 
 propagateNan=False
 mrt_res=args.mrt_res
-masking=args.masking
+
 print(mrt_res)
     #ok_seq_res = resolution
 
@@ -518,16 +550,22 @@ if args.cutholes:
             pad=True, return_mask=True,masking=masking,propagateNan=propagateNan)
         print("RFD")
         RFDpearson, RFDstd, RFD, [mask_RFD, l] = compare(d3p, expRFD, cellseq, res=resolution, ch=ch,
-                                                         start=start, end=end, return_exp=True, rescale=1 / resolution,
+                                                         start=start, end=end, return_exp=True, rescale=1,
                                                          trunc=True, pad=True, return_mask=True, smoothf=args.fsmooth,
                                                          masking=masking,propagateNan=propagateNan)
 
-        mask_MRTh = mapboth(mask_MRT,mask_RFD,2,pad=True)
+        if mrt_res != resolution:
+            mask_MRTh = mapboth(mask_MRT,mask_RFD,mrt_res//resolution,pad=True)
+        else:
+            mask_MRTh=mask_MRT
 
         whole_mask = mask_MRTh & mask_RFD
         masks.append(whole_mask)
-
-        segment = cut_larger_than(whole_mask,args.cutholes//resolution)
+        #print(mask_MRT[:65])
+        #print(mask_RFD[:65])
+        #print(masking)
+        #print(whole_mask[:65])
+        segment = cut_larger_than(whole_mask.copy(),args.cutholes//resolution)
         Segments.append(segment)
         #print(i,segment)
 
@@ -561,7 +599,7 @@ if not args.experimental:
 
         lres.append(get_fast_MRT_RFDs(
             nsim, d3p+np.ones_like(d3p)*np.sum(d3p)*noise/len(d3p), ndiff, kon=kon,
-            fork_speed=fork_speed, dori=args.dori*5/resolution, single_mol_exp=args.single, continuous=args.continuous, cascade=cascade))
+            fork_speed=fork_speed, dori=args.dori, single_mol_exp=args.single, continuous=args.continuous, cascade=cascade))
     #print("check", np.sum(d3p), np.sum(np.ones_like(d3p)*np.sum(d3p)*0.1/len(d3p)))
 
         #print("End Simeeeeuuuuuuuuuuuuuuuuuuuu")
@@ -653,14 +691,14 @@ else:
         early_over_late = True
     res = get_fast_MRT_RFDs(
         nsim, d3p, tot_diff, kon=kon,
-        fork_speed=fork_speed, dori=args.dori*5/resolution,
+        fork_speed=fork_speed, dori=args.dori,
         single_mol_exp=args.single, continuous=args.continuous,
         cascade=cascade, breaks=breaks, n_jobs=args.n_jobs,
         binsize=resolution,timespend=bigstallp,nMRT=args.nMRT,
         filter_termination=args.filter_termination,
         introduction_time=args.introduction_time,correct_activation=args.correct_activation,
         mask=bigmask,early_over_late=early_over_late)
-    from IPython.core.debugger import set_trace
+    #from IPython.core.debugger import set_trace
 
     MRTp_big, MRTs_big, RFDs_big, Rept_time, single_mol_exp, pos_time_activated_ori, \
         It , Pa, Pt ,Time,MRTstd,Free,Nfork,MRTsingle,T99,T95 = res
@@ -724,7 +762,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     name_w = args.name+"_%s_%i_%i" % (str(ch), start, end)
 
     MRTp, MRTs, RFDs, Rept_time, single_mol_exp, pos_time_activated_ori, It , Pa, Pt,Time,MRTstdx,Free,Nfork,mask = res
-    if args.save and ch==1:
+    if args.save and ch==list_task[0][2]:
         with open(args.name+"alldat.pick", "wb") as f:
             #pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
             pickle.dump([ Rept_time, Time, It,Free,Nfork,pos_time_activated_ori,MRTsingle,split_ch], f)
@@ -745,7 +783,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     gMRT.append(MRTp[::mrt_res // resolution][:l][mask_MRT])
     gMRTe.append(MRT[:l][mask_MRT])
     RFDpearson, RFDstd, RFD, [mask_RFD, l] = compare(RFDs, expRFD, cellseq, res=resolution, ch=ch,
-                                                     start=start, end=end, return_exp=True, rescale=1 / resolution,
+                                                     start=start, end=end, return_exp=True, rescale=1 ,
                                                      trunc=True, pad=True, return_mask=True, smoothf=args.fsmooth,
                                                      masking=masking,propagateNan=propagateNan)
 
@@ -778,25 +816,25 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     if len(stallp) ==0:
         stallps = np.ones_like(d3ps)
 
-    if args.datafile != None:
-        correct_scale=1000
+    if chn != []:
+        sch = ch
     else:
-        correct_scale=1
+        sch = "chr%s" % str(ch)
 
     if type(GData) == list:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
 
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTs)])
         #print(ml,len(Pa),len(MRT),len(MRTs),len(RFDs))
-        GData = pd.DataFrame({"chrom": ["chrom%s" % str(ch)]*ml, "chromStart": x[:ml]*correct_scale,
-                             "chromEnd": x[:ml]*correct_scale, "RFDe": RFD[:ml],
+        GData = pd.DataFrame({"chrom": [sch]*ml, "chromStart": x[:ml],
+                             "chromEnd": x[:ml], "RFDe": RFD[:ml],
                               "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
                               "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml],"mask":mask[:ml]})
     else:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
         ml = np.min([len(x), len(RFD), len(RFDs), len(MRT), len(MRTp)])
-        GDatab = pd.DataFrame({"chrom": ["chrom%s" % str(ch)]*ml, "chromStart": x[:ml]*correct_scale,
-                                "chromEnd": x[:ml]*correct_scale, "RFDe": RFD[:ml],
+        GDatab = pd.DataFrame({"chrom": [sch]*ml, "chromStart": x[:ml],
+                                "chromEnd": x[:ml], "RFDe": RFD[:ml],
                                "RFDs": RFDs[:ml], "MRTe": MRT[:ml], "MRTs": MRTp[:ml],"Pa":Pa[:ml],
                                "Pt":Pt[:ml],"Stall":stallps[:ml],"Init":d3ps[:ml],"MRTstd":MRTstdx[:ml],"mask":mask[:ml]})
 
@@ -816,14 +854,20 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
             return float("%.2e" % v)
         except:
             return v
-    Res = {"marks": [args.signal], "Diff": [ndiff], "Random": [noise], "Dori": [args.dori*5/resolution],
+    Res = {"marks": [args.signal], "Diff": [ndiff], "Random": [noise], "Dori": [args.dori],
                          "MRTp": [[trunc2(MRTpearson[0]),MRTpearson[1]]], "RFDp": [[trunc2(RFDpearson[0]),RFDpearson[1]]],
-                         "MRTstd": [trunc2(MRTstd)], "RFDstd": [trunc2(RFDstd)], "RepTime": [trunc2(np.median(Rept_time))], "ch": [ch],
+                         "MRTstd": [trunc2(MRTstd)], "RFDstd": [trunc2(RFDstd)],
+                         "RepTime": [trunc2(np.mean(Rept_time))],
+                         "sRepTime": [trunc2(np.std(Rept_time-np.mean(Rept_time)))],
+                          "ch": [ch],
                          "lenMRT": [len(mask_MRT)], "MRTkeep": [sum(mask_MRT)], "lenRFD": [len(mask_RFD)],
                          "RFDkeep": [sum(mask_RFD)],
                          "codire": [trunc2(codire[-1])],
-                         "NactiOri":mean_activated_ori,"T99":[trunc2(np.mean(T99))],
-                          "T95": [trunc2(np.mean(T95))]}
+                         "NactiOri":mean_activated_ori,
+                         "T99":[trunc2(np.mean(T99))],
+                         "sT99":[trunc2(np.std(T99-np.mean(T99)))],
+                          "T95": [trunc2(np.mean(T95))],
+                          "sT95":[trunc2(np.std(T95-np.mean(T95)))]}
 
     if args.single:
         # print(single_mol_exp)
@@ -835,27 +879,27 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
             200/resolution), n_sample=200)
         # print(Deltas0)
 
+        if len(Deltas0["dist_ori"]) != 0:
+            Res["Fiber200meaninterdist"] = trunc2(np.mean(np.concatenate(Deltas0["dist_ori"])*resolution))
 
-        Res["Fiber200meaninterdist"] = trunc2(np.mean(np.concatenate(Deltas0["dist_ori"])*resolution))
+            print("Mean inter ori distance", np.mean(np.concatenate(Deltas0["dist_ori"])*resolution))
+            Deltas = compute_real_inter_ori(pos_time_activated_ori)
+            print("Mean real inter ori distance", np.mean(Deltas)*resolution)
 
-        print("Mean inter ori distance", np.mean(np.concatenate(Deltas0["dist_ori"])*resolution))
-        Deltas = compute_real_inter_ori(pos_time_activated_ori)
-        print("Mean real inter ori distance", np.mean(Deltas)*resolution)
-
-        Res["Realinterdist"] = trunc2(np.mean(Deltas)*resolution)
+            Res["Realinterdist"] = trunc2(np.mean(Deltas)*resolution)
 
 
-        nfork_per_fiber = np.array([len(di) for di in Deltas0["size_forks"]])
-        # hist(nfork_per_fiber,range=[0,5],bins=6,normed=True)
-        for i in range(5):
-            print("Nfork %i, percent %.2f" % (i, np.sum(nfork_per_fiber == i)/len(nfork_per_fiber)))
+            nfork_per_fiber = np.array([len(di) for di in Deltas0["size_forks"]])
+            # hist(nfork_per_fiber,range=[0,5],bins=6,normed=True)
+            for i in range(5):
+                print("Nfork %i, percent %.2f" % (i, np.sum(nfork_per_fiber == i)/len(nfork_per_fiber)))
 
-            Res["Fiber200_percent_%i_Forks" % i] = trunc2(np.sum(nfork_per_fiber == i)/len(nfork_per_fiber))
+                Res["Fiber200_percent_%i_Forks" % i] = trunc2(np.sum(nfork_per_fiber == i)/len(nfork_per_fiber))
 
-        print("Mean number of fork / fiber having forks",
-              np.mean(nfork_per_fiber[nfork_per_fiber != 0]))
+            print("Mean number of fork / fiber having forks",
+                  np.mean(nfork_per_fiber[nfork_per_fiber != 0]))
 
-        Res["Nforkperfibrwithfork"] = trunc2(np.mean(nfork_per_fiber[nfork_per_fiber != 0]))
+            Res["Nforkperfibrwithfork"] = trunc2(np.mean(nfork_per_fiber[nfork_per_fiber != 0]))
 
 
 
@@ -915,7 +959,7 @@ pMRT = stats.pearsonr(np.concatenate(gMRT), np.concatenate(gMRTe)),
 sMRT = np.std(np.concatenate(gMRT) - np.concatenate(gMRTe))
 meanCodire = np.mean(codire)
 print("output",args.name+"global_corre.csv")
-glob = pd.DataFrame({"marks": [args.signal],  "Random": [noise], "Dori": [args.dori*5/resolution],
+glob = pd.DataFrame({"marks": [args.signal],  "Random": [noise], "Dori": [args.dori],"fork_speed":args.fspeed,
                      "MRTp": pMRT, "RFDp": pRFD,
                      "MRTstd": [sMRT], "RFDstd": [sRFD],
                      "RepTime": [np.median(Rept_time)],

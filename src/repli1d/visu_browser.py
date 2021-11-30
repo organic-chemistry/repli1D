@@ -8,17 +8,17 @@ try:
 except:
     pass
 from plotly import tools
-from pylab import *
 
 def plot_without_border(img,w=10,h=10,dpi=100,tmpname="mat.png"):
+    import pylab
     from PIL import Image
 
 
-    fig = figure(frameon=False)
+    fig = pylab.figure(frameon=False)
     fig.set_size_inches(w,h)
 
 
-    ax = Axes(fig, [0., 0., 1., 1.])
+    ax = pylab.Axes(fig, [0., 0., 1., 1.])
     ax.set_axis_off()
     fig.add_axes(ax)
 

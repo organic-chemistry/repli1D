@@ -423,13 +423,14 @@ def sm(ser, sc): return np.array(pd.Series(ser).rolling(
     sc, min_periods=sc, center=True).mean())
 
 
-def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile=85, cell="K562",
+def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=6, percentile=85, cell="K562",
                  cellMRT=None, cellRFD=None, nanpolate=False, fsmooth=None, gsmooth=5,
                  recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",
-                 rfd_only=False,exp4=False,oli=False):
+                 rfd_only=False,exp4=False,oli=False,mrt_peak=False):
 
     rpol = resolution_polarity
-
+    if exp4:
+        exp_factor=6
     if fich_name is None:
         if cellMRT is None:
             cellMRT = cell
@@ -447,7 +448,7 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
             resolution=resolution_polarity
 
         #print(cell)
-        if (not rfd_only) or exp4:
+        if (not rfd_only) or exp4 or mrt_peak:
             x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
                                               start=start, end=end, resolution=resolution, raw=False)
         else:
@@ -457,13 +458,15 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
 
         if nanpolate:
             pol_exp = nan_polate(pol_exp)
-
-            if fsmooth != None:
-                pol_exp = smooth(pol_exp, fsmooth)
-
+        #print(pol_exp[:10])
+        if fsmooth != None:
+            print("Smoothing")
+            pol_exp = smooth(pol_exp, fsmooth)
+        #exit()
+        #print(pol_exp[:10])
+        #exit()
         ratio_res = resolution // rpol
 
-        pol_exp /= rpol
 
         Smpol = np.copy(pol_exp)
 
@@ -472,7 +475,7 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
             nmrt = mapboth(mrt_exp, pol_exp, ratio_res, pad=True)
     else:
         strain = pd.read_csv(fich_name, sep=",")
-        resolution = 5
+        #resolution = 5
         x_pol = strain.chromStart
         if sim:
             pol_exp = strain.RFDs
@@ -481,8 +484,14 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
             pol_exp = strain.RFDe
             mrt_exp = strain.MRTe
         nmrt = mrt_exp
+        if fsmooth != None:
+            #print("smothing")
+            pol_exp = smooth(pol_exp, fsmooth)
         Smpol = np.copy(pol_exp)
         ratio_res = 1
+        #exit()
+    #print(fich_name)
+    #exit()
 
     if not rfd_only:
         """
@@ -498,7 +507,7 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=4, percentile
 
     delta = Smpol[1:] - Smpol[:-1]
     delta -= np.nanmin(delta)
-
+    print(delta[:10])
     percentile = np.percentile(delta[~np.isnan(delta)], percentile)
     print("Threshold value", percentile)
     delta[delta < percentile] = 0.0

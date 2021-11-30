@@ -325,6 +325,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--window', type=int, default=51)
     parser.add_argument('--max_epoch', type=int, default=150)
+    parser.add_argument('--batch_size', type=int, default=128)
+
     parser.add_argument('--imp', action="store_true")
     parser.add_argument('--reduce_lr', action="store_true")
 
@@ -520,7 +522,7 @@ if __name__ == "__main__":
                 validation_split=0.
             history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
                                                                y=y_train[sel],
-                                                               batch_size=128,
+                                                               batch_size=args.batch_size,
                                                                epochs=args.max_epoch,
                                                                verbose=1,
                                                                callbacks=cp+[History(),

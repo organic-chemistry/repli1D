@@ -90,6 +90,13 @@ if __name__ == "__main__":
             sd["marks"] = "rfd2init"
         if "markns" in fich:
             sd["marks"] += "ns"
+        if sd["marks"]+"_corrected" in fich:
+            sd["marks"]+="_corrected"
+
+        if "fork_speed" not in sd:
+            for fs in np.arange(0.5,5.1,0.5):
+                if "%s-%s"%("fork_speed", "%.2e"%fs) in fich:
+                    sd["fork_speed"]=fs
 
         # Compute deltas:
         if args.delta:

@@ -9,6 +9,12 @@ import numpy as np
 import glob
 import pprint
 from scipy.signal import find_peaks
+chromlength_human =[249250621,243199373,198022430,191154276,180915260,171115067,159138663,146364022,
+141213431,135534747,135006516,133851895,115169878,107349540,102531392,90354753,81195210,78077248,
+59128983,63025520,48129895,51304566]
+
+chromlength_yeast =[230218,813184,316620,1531933,576874,270161,1090940,562643,439888,
+                    745751,666816,1078177,924431,784333,1091291,948066]
 
 try:
     import pyBigWig
@@ -79,8 +85,8 @@ def is_available(strain, experiment):
         if len(resolutions) != 0:
             exps = glob.glob(lroot + resolutions[0]+"/*")
             files = []+exps
-            exps =  [exp.split("/")[-1][:-4] for exp in exps if "csv" in exp]
-
+            exps =  [exp.split("/")[-1][:] for exp in exps if "csv" in exp]
+            print(exps)
             for iexp,exp in enumerate(exps):
                 if exp == experiment:
                     return True,[files[iexp]],int(resolutions[0].replace("kb",""))
@@ -519,14 +525,10 @@ def overlap_fraction(start, end, res):
 
 
 def create_index_human(strain,exp,resolution=10,root="./"):
-    chromlength = [248956422, 242193529, 198295559, 190214555, 181538259,
-                   170805979, 159345973, 145138636, 138394717,
-                   133797422, 135086622, 133275309, 114364328, 107043718,
-                   101991189, 90338345, 83257441,
-                   80373285, 58617616, 64444167, 46709983, 50818468]
+
     #chromlength = [248956422]
     data = {iexp:[] for iexp in exp}
-    for chrom, length in enumerate(chromlength, 1):
+    for chrom, length in enumerate(chromlength_human, 1):
         for iexp in exp:
             data[iexp].append(replication_data(strain, iexp,
                                      chromosome=chrom, start=0,
@@ -556,11 +558,7 @@ def create_index_human(strain,exp,resolution=10,root="./"):
 
 
 def whole_genome(**kwargs):
-    chromlength = [248956422, 242193529, 198295559, 190214555, 181538259,
-                   170805979, 159345973, 145138636, 138394717,
-                   133797422, 135086622, 133275309, 114364328, 107043718,
-                   101991189, 90338345, 83257441,
-                   80373285, 58617616, 64444167, 46709983, 50818468]
+
     data = []
 
     def fl(name):
@@ -589,7 +587,7 @@ def whole_genome(**kwargs):
     strain = kwargs.pop("strain")
     experiment = kwargs.pop("experiment")
     resolution = kwargs.pop("resolution")
-    for chrom, length in enumerate(chromlength, 1):
+    for chrom, length in enumerate(chromlength_human, 1):
 
         data.append(replication_data(strain, experiment,
                                      chromosome=chrom, start=0,
@@ -621,10 +619,10 @@ def replication_data(strain, experiment, chromosome,
         #print(strain)
         data=pd.read_csv(strain)
         #print(len(data))
-        sub = data[data.chr==chromosome][experiment]
+        sub = data[data.chrom==chromosome][experiment]
         y = np.array(sub[int(start/resolution):int(end/resolution)])
         print("Sizes",chromosome,len(sub),int(end/resolution))
-        return np.arange(len(y))*resolution + start,y
+        return (np.arange(len(y))*resolution + start)*1000,y
         #chn = list(set(data.chr))
 
 
@@ -788,8 +786,9 @@ def replication_data(strain, experiment, chromosome,
 
             strain = pd.read_csv(files[0], sep="\t")
             #print(strain.mean())
-            tmpl = "chr%s"
-            f = 1000
+            #print(strain)
+            #tmpl = "chr%s"
+            f = 1000 #Needed because start is in kb
             if "chrom" not in strain.columns:
                 strain = pd.read_csv(files[0], sep=",")
                 # print(strain)
@@ -809,30 +808,32 @@ def replication_data(strain, experiment, chromosome,
 
             strain["chrom"] = [sanitize(ch) for ch in strain["chrom"]]
 
-
+            #print(strain)
             #print(strain.describe())
             #print(strain.head())
             #print( tmpl % chro)
             #print("F",f)
-            data = strain[(strain.chrom == tmpl % chro) & (
+            data = strain[(strain.chrom ==  chro) & (
                 strain.chromStart >= f * start) & (strain.chromStart < f * end)]
             #print("Warning coold shift one")
             #print("Data",len(data))
-
+            #print(f)
+            #print(data)
             if oData:
                 return data
 
-            x = np.array(data.chromStart / 2 + data.chromEnd / 2) / f  # kb
+            x = np.array(data.chromStart / 2 + data.chromEnd / 2) #/ f  # kb
             if signame == "signalValue" and signame not in data.columns:
                 if "signal" in data.columns:
                     signame = "signal"
                     print("Warning changing signalValue to signal")
             y = np.array(data[signame])
+            #print(y)
             #print(x[:10])
             #print(y[:10])
             #print(start,end)
             #print(chro,np.mean(y),len(y))
-            return re_sample(x, y, start, end, resolution)
+            return re_sample(x, y, start * f, end * f, resolution*f)
 
     # print(files)
     assert(type(files) == list)
@@ -1460,12 +1461,16 @@ def replication_data(strain, experiment, chromosome,
         else:
             #print(files)
             for f in files:
-                if "Rep1" in f and "chr%s.dat" % str(chromosome) in f:
+                if type(chromosome) == str  and chromosome.startswith("chr"):
+                    chu = chromosome[3:]
+                else:
+                    chu=chromosome
+                if "Rep1" in f and "chr%s.dat" % str(chu) in f:
                     # print(f)
                     data = pd.read_csv(f)
 
                     break
-                elif (strain == "Raji") and "chr%s_" % str(chromosome) in f:
+                elif (strain == "Raji") and "chr%s_" % str(chu) in f:
                     print(f)
                     data = pd.read_csv(f)
                     data=2**data
@@ -1474,7 +1479,7 @@ def replication_data(strain, experiment, chromosome,
             #print(len(data))
             data[data < 0] = np.nan
             data = np.array(data)
-            data = np.concatenate([np.array([data[0], data[0], data[0], data[0]]), data]) # Because centered at 5 kb
+            data = np.concatenate([np.array([data[0]]*4), data,np.array([data[-1]]*4)]) # Because centered the first bin correstpond to 100 kb
             y = np.array(data[int(start / 10): int(end / 10)])
             x = np.arange(len(y)) * 10 + start
             assert(len(x) == len(y))
@@ -1526,27 +1531,31 @@ def replication_data(strain, experiment, chromosome,
             chromosome = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
                           11: "XI", 12: "XII", 13: "XIII", 14: "XIV", 15: "XV", 16: "XVI"}[chromosome]
         # print("chr%s.pol" % str(chromosome))
+        if type(chromosome) == str and chromosome.startswith("chr"):
+            chu = chromosome[3:]
+        else:
+            chu=chromosome
         for f in files:
             #print("File", f)
 
-            if experiment == "OKSeqo" and "chr%s.pol" % str(chromosome) in f:
+            if experiment == "OKSeqo" and "chr%s.pol" % str(chu) in f:
                 data = pd.read_csv(f, names=["pol"])
                 break
-            if experiment == "OKSeqR" and "chr%s.R" % str(chromosome) in f:
+            if experiment == "OKSeqR" and "chr%s.R" % str(chu) in f:
                 data = pd.read_csv(f, names=["R"])
                 break
-            if experiment == "OKSeqF" and "chr%s.F" % str(chromosome) in f:
+            if experiment == "OKSeqF" and "chr%s.F" % str(chu) in f:
                 data = pd.read_csv(f, names=["F"])
                 break
         if experiment in ["OKSeqS", "OKSeq","OKSeqF","OKSeqR"]:
             for f in files:
 
-                if "chr%s.F" % str(chromosome) in f:
+                if "chr%s.F" % str(chu) in f:
                     print(f)
                     data1 = pd.read_csv(f, names=["F"])
                     break
             for f in files:
-                if "chr%s.R" % str(chromosome) in f:
+                if "chr%s.R" % str(chu) in f:
                     data2 = pd.read_csv(f, names=["R"])
                     break
             # print(data2)
@@ -1564,7 +1573,7 @@ def replication_data(strain, experiment, chromosome,
 
                 x0, R = re_sample(x, subR, start, end, resolution)
                 x0, F = re_sample(x, subF, start, end, resolution)
-                RFD = (R-F)/(R+F) * resolution
+                RFD = (R-F)/(R+F)
                 med = np.median(R + F)/2
                 #print(med)
                 RFD[R < med/10] = np.nan

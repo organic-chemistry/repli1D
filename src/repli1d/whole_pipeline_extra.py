@@ -21,7 +21,7 @@ if cell == "K562":
     cellcmd = "--cell K562"
 elif cell == "Raji":
     ndiff = 0.4
-    cellcmd = "--cell K562"
+    cellcmd = "--cell Raji"
 elif cell  == "GM":
     ndiff = 0.6
     cellcmd = "--cell Gm12878 --comp GM12878 --cellseq GM06990"
