@@ -26,7 +26,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--start', type=int, default=8000) # in kb
 parser.add_argument('--end', type=int, default=120000) # in kb
-parser.add_argument('--ch', type=str, default="1")
+parser.add_argument('--ch', type=str, default="chr1")
 parser.add_argument('--resolution', type=int, default=5)
 parser.add_argument('--resolutionpol', type=int, default=5)
 parser.add_argument('--ndiff', type=float, default=60)
@@ -232,7 +232,7 @@ for start, end, ch, ndiff in list_task:
 
     name_w = args.name+"_%s_%i_%i" % (str(ch), start, end)
 
-    if args.signal in ["peak","peakRFDonly","exp4","oli"]:
+    if args.signal in ["peak","peakRFDonly","exp4","oli","peakMRT"]:
         #print("Percentile", percentile, args.recomp, args.gsmooth, args.dec, args.smoothpeak)
         rfd_only=False
         if args.signal in ["peakRFDonly","exp4"]:
@@ -244,6 +244,10 @@ for start, end, ch, ndiff in list_task:
         if args.signal == "oli":
             oli=True
             print("Warnin setting percentile at 85")
+        peak_mrt=False
+        if args.signal == "peakMRT":
+            peak_mrt=True
+            print("Warnin setting percentile at 85")
         print("Cell",start,end,cell)
 
         x, d3p = detect_peaks(start, end, ch,
@@ -251,7 +255,7 @@ for start, end, ch, ndiff in list_task:
                               exp_factor=exp_factor,
                               percentile=percentile, cell=cell, cellMRT=comp, cellRFD=cellseq, nanpolate=True,
                               recomp=args.recomp, gsmooth=args.gsmooth, dec=args.dec, fsmooth=args.smoothpeak,
-                              expRFD=expRFD,rfd_only=rfd_only,exp4=exp4,oli=oli)
+                              expRFD=expRFD,rfd_only=rfd_only,exp4=exp4,oli=oli,peak_mrt=peak_mrt)
 
         if resolution != resolution_polarity:
             x, d3p0 = detect_peaks(start, end, ch,
@@ -481,11 +485,12 @@ for start, end, ch, ndiff in list_task:
         _, mrt_tmp = replication_data(cell, "MRT", chromosome=ch,
 
                                   start=start, end=end,
-                                  resolution=10, raw=False)
+                                  resolution=args.mrt_res, raw=False)
 
         mb=np.exp(-6*mapboth(mrt_tmp, d3p, 2, pad=True))
         d3p[~np.isnan(mb)] *= mb[~np.isnan(mb)]
         #d3p
+        print("Transforming")
         print(mrt_tmp)
         print(d3p)
 

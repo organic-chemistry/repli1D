@@ -793,7 +793,7 @@ def replication_data(strain, experiment, chromosome,
                 strain = pd.read_csv(files[0], sep=",")
                 # print(strain)
                 #tmpl = "chrom%s"
-                f = 1
+                f = 1000
                 # strain.chrom
             # sanitize chrom:
             def sanitize(ch):

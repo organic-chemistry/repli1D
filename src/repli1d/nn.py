@@ -51,9 +51,10 @@ def filter_anomalyf(signal,smv,percentile,nf):
         signal=nan_polate(signal)
     return signal
 
+
 def load_signal(name,
-                marks=['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac', 'H3k4me2',
-                       'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1"],
+                marks=[ "H3K4me1", "H3K4me3", "H3K27me3", "H3K36me3",
+                         "H3K9me3","H2A.Z","H3K79me2","H3K9ac","H3K4me2","H3K27ac","H4K20me1"],
                 targets=["initiation"], t_norm=None, smm=None,wig=True,augment=None,
                 show=True,add_noise=False,filter_anomaly=False):
     if type(name) == str:
@@ -168,14 +169,14 @@ def load_signal(name,
 
 def window_stack(a, stepsize=1, width=3):
     # print([[i,1+i-width or None,stepsize] for i in range(0,width)])
-    return np.hstack(a[i:1+i-width or None:stepsize] for i in range(0, width))
+    return np.hstack([a[i:1+i-width or None:stepsize] for i in range(0, width)])
 
 
 def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     # X = (seq,dim)
     # y = (seq)
-    Xt = np.array(Xt)
-    yt = np.array(yt)
+    Xt = np.array(Xt,dtype=np.float16)
+    yt = np.array(yt,dtype=np.float16)
     #print(Xt.shape, yt.shape)
 
     assert(len(Xt.shape) == 2)
@@ -283,17 +284,14 @@ def create_model_imp(X_train, targets, nfilters, kernel_length,loss="binary_cros
 
 def train_test_split(chrom, ch_train, ch_test, notnan):
     print(list(ch_train), list(ch_test))
-    try:
-        chltrain = ["chr%i" % i for i in ch_train]
-        chltest = ["chr%i" % i for i in ch_test]
-    except:
-        chltrain = ch_train
-        chltest = ch_test
+
+    chltrain = ch_train
+    chltest = ch_test
     if len(notnan) != 0:
         train = [chi in chltrain and notna for chi, notna in zip(chrom.chrom, notnan)]
         test = [chi in chltest and notna for chi, notna in zip(chrom.chrom, notnan)]
     else:
-        print("Working on all")
+        print("Working on all (no nan)")
         train = [chi in chltrain for chi in chrom.chrom]
         test = [chi in chltest for chi in chrom.chrom]
     print(np.sum(train), np.sum(test), np.sum(test)/len(test))
@@ -414,14 +412,21 @@ if __name__ == "__main__":
                 traint =  [3,4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
                 valt = [20, 21, 22, 23]
                 valt = [2]
-
                 testt = [1]#1]
+
+                traint = ["chr%i" for i in traint]
+                valt = ["chr%i" for i in valt]
+                testt = ["chr%i" for i in testt]
+
             else:
                 XC = pd.read_csv(args.listfile[0])
                 chs = set(XC.chrom)
                 traint = list(chs)
-                tests = traint[0]
-                valt = traint[0]
+                tests = ["chr1"]
+                valt = ["chr2"]
+                traint.remove(tests[0])
+                traint.remove(valtW[0])
+
                 #traint.pop(0)
 
             if not args.datafile:
@@ -434,6 +439,7 @@ if __name__ == "__main__":
 
             vtrain = transform_seq(X_train_us, y_train_us, 1, window)
             vtest = transform_seq(X_test_us, y_test_us, 1, window)
+            del X_train_us, X_test_us, y_train_us, y_test_us
             if X_train == []:
                 X_train, y_train = vtrain
                 X_test, y_test = vtest
@@ -444,6 +450,13 @@ if __name__ == "__main__":
                 y_test = np.concatenate([y_test, vtest[1]])
 
         X_train, y_train = unison_shuffled_copies(X_train, y_train)
+
+        n = X_train.shape[0] * X_train.shape[2]
+        if n>1e9:
+            nmax=int(0.5e9//X_train.shape[2])
+            print(nmax)
+            X_train=X_train[:nmax]
+            y_train=y_train[:nmax]
 
         print("Shape",X_train.shape,y_train.shape)
 

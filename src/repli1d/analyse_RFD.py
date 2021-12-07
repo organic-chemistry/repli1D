@@ -426,19 +426,21 @@ def sm(ser, sc): return np.array(pd.Series(ser).rolling(
 def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=6, percentile=85, cell="K562",
                  cellMRT=None, cellRFD=None, nanpolate=False, fsmooth=None, gsmooth=5,
                  recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",
-                 rfd_only=False,exp4=False,oli=False,mrt_peak=False):
+                 rfd_only=False,exp4=False,oli=False,peak_mrt=False):
 
     rpol = resolution_polarity
     if exp4:
         exp_factor=6
     if fich_name is None:
+        print("Loading here")
+
         if cellMRT is None:
             cellMRT = cell
         if cellRFD is None:
             cellRFD = cell
         print(start, end, cellRFD, ch, rpol)
-        x_pol, pol_exp = replication_data(cellRFD, expRFD, chromosome=ch,
-                                          start=start, end=end, resolution=rpol, raw=False, pad=True)
+
+
         if "Yeast" in cellMRT:
             resolution = 1
         elif cell in ["K562","Hela","GM","HeLa","HeLaS3","Gm12878"]:
@@ -448,32 +450,45 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=6, percentile
             resolution=resolution_polarity
 
         #print(cell)
-        if (not rfd_only) or exp4 or mrt_peak:
+        if (not rfd_only) or exp4:
             x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
                                               start=start, end=end, resolution=resolution, raw=False)
-        else:
-            pol_expc = pol_exp.copy()
-            pol_expc[np.isnan(pol_expc)] = 0
-            #mrt_exp = np.array(pd.Series(np.cumsum(pol_expc)).rolling(10000, min_periods=1, center=True).apply(lambda x: np.mean(x<x[len(x)//2])))[::2]
 
-        if nanpolate:
-            pol_exp = nan_polate(pol_exp)
-        #print(pol_exp[:10])
-        if fsmooth != None:
-            print("Smoothing")
-            pol_exp = smooth(pol_exp, fsmooth)
+
+
+        # Loading RFD
+
+        if not peak_mrt:
+            x_pol, pol_exp = replication_data(cellRFD, expRFD, chromosome=ch,
+                                              start=start, end=end, resolution=rpol, raw=False, pad=True)
+            if nanpolate:
+                pol_exp = nan_polate(pol_exp)
+            #print(pol_exp[:10])
+            if fsmooth != None:
+                print("Smoothing")
+                pol_exp = smooth(pol_exp, fsmooth)
+                #mrt_exp = np.array(pd.Series(np.cumsum(pol_expc)).rolling(10000, min_periods=1, center=True).apply(lambda x: np.mean(x<x[len(x)//2])))[::2]
+
+
+        else:
+            if resolution == rpol:
+                smrt = smooth(mrt_exp,5)
+                pol_exp = np.concatenate([[0],smrt[1:]-smrt[:-1]])
+                x_pol=x_mrt
+        Smpol = np.copy(pol_exp)
         #exit()
         #print(pol_exp[:10])
         #exit()
         ratio_res = resolution // rpol
 
 
-        Smpol = np.copy(pol_exp)
+
 
         #print(mrt_exp.shape[0]*2, pol_exp.shape, ratio_res,)
         if not rfd_only:
             nmrt = mapboth(mrt_exp, pol_exp, ratio_res, pad=True)
     else:
+        print("Here datafile")
         strain = pd.read_csv(fich_name, sep=",")
         #resolution = 5
         x_pol = strain.chromStart

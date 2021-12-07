@@ -16,7 +16,7 @@ import os
 parser = argparse.ArgumentParser()
 parser.add_argument('--start', type=int, default=5000)
 parser.add_argument('--end', type=int, default=120000)
-parser.add_argument('--ch', type=int, default=1)
+parser.add_argument('--ch', type=str, default="1")
 parser.add_argument('--resolution', type=float, default=5)
 parser.add_argument('--ndiff', type=int, default=60)
 parser.add_argument('--percentile', type=int, default=82)
@@ -98,6 +98,7 @@ if args.signal != []:
                 x, d3p = replication_data(cell, signal, chromosome=ch,
                                           start=start, end=end,
                                           resolution=mini(resolution,signal), raw=False, filename=None)
+                #print(d3p)
             elif "--" in signal or ":" in signal:
                 weights_list = []
                 if "--" in signal:
@@ -115,6 +116,7 @@ if args.signal != []:
                     if sigv.count(":") == 1:
                         weights_list = [weights_list]
                     print(weights_list)
+                    signal += "-" + sigv
                 else:
                     signal, *weights_list = signal.split(":")
                     x, raw = replication_data(cell, signal, chromosome=ch,

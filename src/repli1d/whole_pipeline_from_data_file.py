@@ -29,6 +29,8 @@ parser.add_argument('--window', type=int,default=401,
                     help="window size (in resolution unit) for the neural network (must be impair number)")
 parser.add_argument('--nfilters', type=int,default=50,
                     help="conv filters")
+parser.add_argument('--percentile', type=int,default=82,
+                    help="percentile of Delta RFD for I0")
 parser.add_argument('--chr_sub', type=str,default="chr2",
                     help="chromosome on which perform the small optimisation")
 parser.add_argument('--introduction_time', type=float,default=60,
@@ -94,7 +96,7 @@ ndiff /= len(data)*args.resolution/1000
 print(f"USing density {ndiff} in firing factor per Mb")
 
 
-small_sub = f" --mrt_res {args.resolution} --n_jobs {args.threads} --fspeed {args.speed} --visu --experimental --input --resolution {args.resolution} --resolutionpol {args.resolution} "
+small_sub = f" --percentile {args.percentile} --mrt_res {args.resolution} --n_jobs {args.threads} --fspeed {args.speed} --visu --experimental --input --resolution {args.resolution} --resolutionpol {args.resolution} "
 if args.cut_holes != 0:
     small_sub+= f"--cutholes {args.cut_holes} "
 if args.masking != 0:
@@ -108,7 +110,7 @@ small_sub += f"--introduction_time {args.introduction_time} --dori {args.dori}"
 
 
 
-kon = 8.625 / (len(data) * args.resolution )
+kon = 8.625 / (len(data) * args.resolution ) / 3
 print(f"Using kon = {kon}")
 
 standard_parameters = small_sub + f"  --wholecell --kon {kon} --noise 0.0 --nsim {nsim} "
