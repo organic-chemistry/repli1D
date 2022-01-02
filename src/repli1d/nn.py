@@ -12,6 +12,52 @@ from keras.models import Sequential, load_model
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
+def normal_seq(signal, output_path=None):
+    """
+    Robust normalization that transforms each fature in range (0,1)
+    and outputs the minimum and maximum of features in an excel file,
+    suitable for future transformation on new dataset in a trained
+    neural network.
+
+    Parameters
+    ----------
+    signal : numpy array or pandas dataframe
+    in the shape of (n_samples, n_features)
+    output_path : str
+    in the shape of /home/usr/anything/
+
+    Returns
+    -------
+    transformed : numpy array
+        a normalized sequence or features in the range (0,1)
+    """
+    global max_element, min_element
+    max_element = []
+    min_element = []
+    transformed = []
+    if isinstance(signal, pd.DataFrame):
+        signal = signal.to_numpy()
+    elif isinstance(signal, list):
+        signal = np.array(signal)
+    if signal.ndim == 1:
+        max_element = max(signal)
+        min_element = min(signal)
+        transformed.append((signal-min_element)/(
+                            max_element-min_element))
+    else:
+        for i in range(signal.shape[1]):
+            max_element.append(max(signal[:, i]))
+            min_element.append(min(signal[:, i]))
+            transformed.append((signal[:, i]-min_element[i])/(
+                                max_element[i]-min_element[i]))
+    transformed = np.array(transformed).T  # transpose for correspondence
+    if output_path is not None:
+        result = pd.DataFrame((min_element, max_element), index=['minimum',
+                                                                 'maximum'])
+        result.to_excel(output_path + 'min_max.xlsx')
+    return transformed
+
+
 def transform_norm(signal):
     s = np.array(signal).copy()
     s -= np.percentile(s, 10)
