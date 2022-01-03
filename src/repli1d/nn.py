@@ -12,11 +12,12 @@ from keras.models import Sequential, load_model
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
-def normal_seq(signal, output_path=None):
+def normal_seq(signal, output_path='../data/'):
     """
-    Robust normalization that transforms each fature in range (0,1)
-    and outputs the minimum and maximum of features in an excel file,
-    suitable for future transformation on new dataset in a trained
+    normalization function that transforms each fature in range (0,1)
+    and outputs the minimum and maximum of features in a csv file in 
+    data folder inside the repository, suitable for future transformation
+    on new dataset in a trained
     neural network.
 
     Parameters
@@ -24,7 +25,6 @@ def normal_seq(signal, output_path=None):
     signal : numpy array or pandas dataframe
     in the shape of (n_samples, n_features)
     output_path : str
-    in the shape of /home/usr/anything/
 
     Returns
     -------
@@ -54,7 +54,7 @@ def normal_seq(signal, output_path=None):
     if output_path is not None:
         result = pd.DataFrame((min_element, max_element), index=['minimum',
                                                                  'maximum'])
-        result.to_excel(output_path + 'min_max.xlsx')
+        result.to_csv(output_path + 'min_max.csv')
     return transformed
 
 
@@ -145,6 +145,9 @@ def load_signal(name,
             print(col)
         if col not in ["DNaseI", "initiation", "Meth", "Meth450", "RFDe",
                        "MRTe", "RFDs", "MRTs"]:
+            if transform_norm == normal_seq:
+                df = pd.DataFrame(transform_norm(df))
+                break
             df[col] = transform_norm(df[col])
         elif col == "DNaseI":
             df[col] = transform_DNase(df[col])
