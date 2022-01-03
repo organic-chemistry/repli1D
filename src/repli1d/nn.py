@@ -12,7 +12,7 @@ from keras.models import Sequential, load_model
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
-def normal_seq(signal, output_path='../data/'):
+def normal_seq(signal, q=99, output_path='../data/'):
     """
     normalization function that transforms each fature in range (0,1)
     and outputs the minimum and maximum of features in a csv file in 
@@ -25,11 +25,14 @@ def normal_seq(signal, output_path='../data/'):
     signal : numpy array or pandas dataframe
     in the shape of (n_samples, n_features)
     output_path : str
-
+    q : the quantile threshold, to act like a lowerpass filter 
+    to remove the outliers. The q is in percentage, this function substitutes 
+    (100-q) quantile from reversed sorted data by the quantile of data that
+    specified by user.
     Returns
     -------
     transformed : numpy array
-        a normalized sequence or features in the range (0,1)
+        a normalised sequence or features in the range (0,1)
     """
     global max_element, min_element
     max_element = []
@@ -40,14 +43,16 @@ def normal_seq(signal, output_path='../data/'):
     elif isinstance(signal, list):
         signal = np.array(signal)
     if signal.ndim == 1:
-        max_element = max(signal)
+        max_element = np.percentile(signal, q)
         min_element = min(signal)
+        signal[signal > max_element] = max_element
         transformed.append((signal-min_element)/(
                             max_element-min_element))
     else:
+        max_element = np.percentile(signal, q, axis=0)
         for i in range(signal.shape[1]):
-            max_element.append(max(signal[:, i]))
             min_element.append(min(signal[:, i]))
+            signal[signal[:, i] > max_element[i]] = max_element[i]
             transformed.append((signal[:, i]-min_element[i])/(
                                 max_element[i]-min_element[i]))
     transformed = np.array(transformed).T  # transpose for correspondence
@@ -140,51 +145,54 @@ def load_signal(name,
     if t_norm is not None:
         transform_norm = t_norm
 
-    for col in df.columns:
-        if show:
-            print(col)
-        if col not in ["DNaseI", "initiation", "Meth", "Meth450", "RFDe",
-                       "MRTe", "RFDs", "MRTs"]:
-            if transform_norm == normal_seq:
-                df = pd.DataFrame(transform_norm(df))
-                break
-            df[col] = transform_norm(df[col])
-        elif col == "DNaseI":
-            df[col] = transform_DNase(df[col])
-        elif col in ["initiation", "Stall"]:
-            df[col] = df[col] / np.max(df[col])
-        elif "Meth" in col:
-            df[col] = transform_norm_meth(df[col])
-        elif "RFD" in col:
-            if "RFD" in col:
-                if col == "RFDe" and filter_anomaly:
-                    df[col] = filter_anomalyf(df[col].copy(), smv=5,
-                                              percentile=98.5, nf=4)
+    if transform_norm == normal_seq:
+        df = pd.DataFrame(transform_norm(df))
+    else:
+        for col in df.columns:
+            if show:
+                print(col)
+            if col not in ["DNaseI", "initiation", "Meth", "Meth450", "RFDe",
+                           "MRTe", "RFDs", "MRTs"]:
+                if transform_norm == normal_seq:
+                    df = pd.DataFrame(transform_norm(df))
+                    break
+                df[col] = transform_norm(df[col])
+            elif col == "DNaseI":
+                df[col] = transform_DNase(df[col])
+            elif col in ["initiation", "Stall"]:
+                df[col] = df[col] / np.max(df[col])
+            elif "Meth" in col:
+                df[col] = transform_norm_meth(df[col])
+            elif "RFD" in col:
+                if "RFD" in col:
+                    if col == "RFDe" and filter_anomaly:
+                        df[col] = filter_anomalyf(df[col].copy(), smv=5,
+                                                  percentile=98.5, nf=4)
 
-                # print("Nanpo")
-                df[col] = nan_polate(df[col])
-            if add_noise and col == "RFDs":
-                print("Noise: ", int(len(df)*0.01))
-                for p in np.random.randint(0, len(df),
-                                           size=int(len(df)*0.01)):  # article 1%
-                    df[col][p] = 2*np.random.rand()-1
+                    # print("Nanpo")
+                    df[col] = nan_polate(df[col])
+                if add_noise and col == "RFDs":
+                    print("Noise: ", int(len(df)*0.01))
+                    for p in np.random.randint(0, len(df),
+                                               size=int(len(df)*0.01)):  # article 1%
+                        df[col][p] = 2*np.random.rand()-1
 
-            if smm is not None:
-                df[col] = smooth(df[col], smm)
-            df[col] = (df[col]+1)/2
-        elif "MRT" in col:
-            if "MRT" in col:
-                df[col] = nan_polate(df[col])
-                if augment == "test":
-                    for asm in [10, 50, 200]:
-                        df[col+f"_sm_{asm}"] = smooth(nan_polate(df[col]), asm)
-                        df[col + f"_sm_{asm}"] -= np.mean(df[col+f"_sm_{asm}"])
-                        df[col + f"_sm_{asm}"] /= np.std(df[col + f"_sm_{asm}"])
+                if smm is not None:
+                    df[col] = smooth(df[col], smm)
+                df[col] = (df[col]+1)/2
+            elif "MRT" in col:
+                if "MRT" in col:
+                    df[col] = nan_polate(df[col])
+                    if augment == "test":
+                        for asm in [10, 50, 200]:
+                            df[col+f"_sm_{asm}"] = smooth(nan_polate(df[col]), asm)
+                            df[col + f"_sm_{asm}"] -= np.mean(df[col+f"_sm_{asm}"])
+                            df[col + f"_sm_{asm}"] /= np.std(df[col + f"_sm_{asm}"])
 
-            pass
+                pass
 
-        if np.sum(np.isnan(df[col])) != 0:
-            raise "NanVal"
+            if np.sum(np.isnan(df[col])) != 0:
+                raise "NanVal"
 
     if show:
         print(np.max(yinit[0]), "max")
