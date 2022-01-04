@@ -15,7 +15,7 @@ from repli1d.analyse_RFD import nan_polate, smooth
 def normal_seq(signal, q=99, output_path='../data/'):
     """
     normalization function that transforms each fature in range (0,1)
-    and outputs the minimum and maximum of features in a csv file in 
+    and outputs the minimum and maximum of features in a csv file in
     data folder inside the repository, suitable for future transformation
     on new dataset in a trained
     neural network.
@@ -25,8 +25,8 @@ def normal_seq(signal, q=99, output_path='../data/'):
     signal : numpy array or pandas dataframe
     in the shape of (n_samples, n_features)
     output_path : str
-    q : the quantile threshold, to act like a lowerpass filter 
-    to remove the outliers. The q is in percentage, this function substitutes 
+    q : the quantile threshold, to act like a lowerpass filter
+    to remove the outliers. The q is in percentage, this function substitutes
     (100-q) quantile from reversed sorted data by the quantile of data that
     specified by user.
     Returns
@@ -529,13 +529,8 @@ if __name__ == "__main__":
         multi_layer_keras_model.summary()
         del X_train, y_train
 
-<<<<<<< HEAD
     if not args.restart and weight is not None:
         #load_model(args.weight)
-=======
-    if not args.restart and args.weight is not None:
-        # load_model(args.weight)
->>>>>>> 648586f0171a2e55194c2041cecc658d1cc442a2
         pass
 
     else:
@@ -621,15 +616,9 @@ if __name__ == "__main__":
         del X_train, y_train
     ###################################
     # predict
-<<<<<<< HEAD
     print("Predict")
     if args.listfile == [] or args.roadmap or ( len(args.predict_files) != 0):
         if marks ==  ["RFDs", "MRTs"]:
-=======
-
-    if args.listfile == [] or args.roadmap or (len(args.predict_files) != 0):
-        if marks == ["RFDs", "MRTs"]:
->>>>>>> 648586f0171a2e55194c2041cecc658d1cc442a2
             marks = ["RFDe", "MRTe"]
         to_pred = []
         if len(args.predict_files) == 0:
@@ -654,24 +643,10 @@ if __name__ == "__main__":
                 wig = False
 
         for namep in to_pred:
-<<<<<<< HEAD
 
             cellp = os.path.split(namep)[1].split("_")[0]#namep.split("_")[-1][:-4]
 
             print("Reading %s, cell %s"%(namep,cellp))
-=======
-            try:
-                cellp = namep.split("_")[-1][:-4]
-                failed = False
-            except:
-                failed = True
-            if failed or (cellp not in ["K562", "GM", "Hela"]):
-                for potential in ["K562", "GM", "Hela"]:
-                    if potential in namep:
-                        cellp = potential
-                        break
-            print("Reading %s, cell %s" % (namep, cellp))
->>>>>>> 648586f0171a2e55194c2041cecc658d1cc442a2
             df, yinit, notnan = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,
                 wig=wig, smm=args.sm, augment=args.augment,
