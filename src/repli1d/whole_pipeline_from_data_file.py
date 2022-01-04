@@ -53,6 +53,7 @@ parser.add_argument('--single', action="store_true",help="Compute single molecul
 parser.add_argument('--save', action="store_true",help="Save individual MRTs and RFDs (only for wholecell)")
 parser.add_argument('--pearson', action="store_true",help="Perform the grid search optimisation on sum of pearson correlation (otherwise on absolute error)")
 parser.add_argument('--max_factor_reptime', type=float,default=1.41)
+parser.add_argument('--on_input_signal', type=str,default=None)
 
 
 args = parser.parse_args()
@@ -124,7 +125,12 @@ maxT = args.repTime * args.repTime_max_factor
 standard_parameters += "--ndiff %.2f %s"%(ndiff,cellcmd)
 
 cmd=[]
-for loop in range(5):
+
+nloop=5
+if args.on_input_signal != None:
+    nloop=1
+
+for loop in range(nloop):
 
     if loop != 0:
         extra_nn = ""
@@ -149,10 +155,14 @@ for loop in range(5):
     cmd_opti = f"python src/repli1d/small_opty.py {extra_small} --size_segment {end/1000} --ndiff {ndiffs} --root {directory_opti}  --cmd '--kon {8.625/end} {small_sub} --start 0 --end {end} --ch {args.chr_sub} --nsim {nsim}  {cellcmd} "
 
     if loop == 0:
-        if args.RFDonly:
-            cmd_opti += "--signal peakRFDonly' "
+        if args.on_input_signal == None:
+            if args.RFDonly:
+                cmd_opti += "--signal peakRFDonly' "
+            else:
+                cmd_opti += "--signal peak' "
         else:
-            cmd_opti += "--signal peak' "
+            cmd_opti += f"--signal {args.on_input_signal}' "
+
 
     else:
         cmd_opti += f"--signal {directory_nn}/nn_global_profiles.csv' --maxT {maxT} "
@@ -169,10 +179,13 @@ for loop in range(5):
     cmd_wholecell=f"python src/repli1d/detect_and_simulate.py {extra_params} {standard_parameters} --name {directory} --extra_param {directory_opti}/params.json "
 
     if loop == 0:
-        if args.RFDonly:
-            cmd_wholecell += "--signal peakRFDonly "
+        if args.on_input_signal == None:
+            if args.RFDonly:
+                cmd_wholecell += "--signal peakRFDonly "
+            else:
+                cmd_wholecell += "--signal peak"
         else:
-            cmd_wholecell += "--signal peak"
+            cmd_wholecell += f"--signal {args.on_input_signal} "
     else:
         cmd_wholecell += f"--signal {directory_nn}/nn_global_profiles.csv"
 
@@ -203,9 +216,6 @@ for cm in cmd:
 
         else:
             cm = cm[0]
-
-
-
 
         script.append(cm)
         if exe:

@@ -425,7 +425,7 @@ if __name__ == "__main__":
                 tests = ["chr1"]
                 valt = ["chr2"]
                 traint.remove(tests[0])
-                traint.remove(valtW[0])
+                traint.remove(valt[0])
 
                 #traint.pop(0)
 
@@ -460,11 +460,16 @@ if __name__ == "__main__":
 
         print("Shape",X_train.shape,y_train.shape)
 
-    if args.weight is not None:
-        multi_layer_keras_model = load_model(args.weight)
+    weight=None
+    if (args.weight is not None) or os.path.exists(rootnn+"/%sweights.hdf5" % cell):
+        weight= args.weight
+        if weight is None:
+            weight = rootnn+"/%sweights.hdf5" % cell
+        multi_layer_keras_model = load_model(weight)
         multi_layer_keras_model.summary()
+        del X_train, y_train
 
-    if not args.restart and args.weight is not None:
+    if not args.restart and weight is not None:
         #load_model(args.weight)
         pass
 
@@ -547,9 +552,10 @@ if __name__ == "__main__":
 
             multi_layer_keras_model.save(rootnn+"/%sweights.hdf5" % cell)
             print("Saving on", rootnn+"/%sweights.hdf5" % cell)
+        del X_train, y_train
     ###################################
     # predict
-
+    print("Predict")
     if args.listfile == [] or args.roadmap or ( len(args.predict_files) != 0):
         if marks ==  ["RFDs", "MRTs"]:
             marks = ["RFDe", "MRTe"]
@@ -576,16 +582,9 @@ if __name__ == "__main__":
                 wig = False
 
         for namep in to_pred:
-            try:
-                cellp = namep.split("_")[-1][:-4]
-                failed=False
-            except:
-                failed=True
-            if failed or (cellp not in ["K562","GM","Hela"]):
-                for potential in ["K562","GM","Hela"]:
-                    if potential in namep:
-                        cellp = potential
-                        break
+
+            cellp = os.path.split(namep)[1].split("_")[0]#namep.split("_")[-1][:-4]
+
             print("Reading %s, cell %s"%(namep,cellp))
             df, yinit, notnan = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,wig=wig,smm=args.sm,
