@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 from keras import backend as K
 from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                              ReduceLROnPlateau)
@@ -26,8 +27,8 @@ def normal_seq(signal, q=99, output_path='../data/'):
     in the shape of (n_samples, n_features)
     output_path : str, default='../data/'
     q : float, default=99
-    the quantile threshold, to act like a lowerpass filter 
-    to remove the outliers. The q is in percentage, this function substitutes 
+    the quantile threshold, to act like a lowerpass filter
+    to remove the outliers. The q is in percentage, this function substitutes
     (100-q) quantile from reversed sorted data by the quantile of data that
     specified by user.
     Returns
@@ -173,7 +174,8 @@ def load_signal(name,
                        "H3K27ac", "H4K20me1"],
                 targets=["initiation"], t_norm=None, smm=None, wig=True,
                 augment=None, show=True, add_noise=False,
-                filter_anomaly=False):
+                filter_anomaly=False,
+                repertory_scaling_param="../data/"):
     if type(name) == str:
         df = pd.read_csv(name)
 
@@ -211,7 +213,8 @@ def load_signal(name,
         transform_norm = t_norm
 
     if transform_norm == normal_seq:
-        df = pd.DataFrame(transform_norm(df))
+        df = pd.DataFrame(transform_norm(df,
+                                         output_path=repertory_scaling_param))
     else:
         for col in df.columns:
             if show:
@@ -263,7 +266,7 @@ def load_signal(name,
         print(np.max(yinit[0]), "max")
         print(df.describe())
 
-    
+
     global min_outputs, max_outputs
     yinit0 = []
     min_outputs = []
@@ -276,7 +279,8 @@ def load_signal(name,
             # trunc[trunc>1] = 1
             result = pd.DataFrame((min_outputs, max_outputs), index=['minimum',
                                                                      'maximum'])
-            result.to_csv('../data/min_max_outputs.csv')
+            result.to_csv(os.path.join(repertory_scaling_param,
+                                       'min_max_outputs.csv'))
             yinit0.append(trunc)
 
         elif t == "DNaseI":
