@@ -24,9 +24,10 @@ def normal_seq(signal, q=99, output_path='../data/'):
     ----------
     signal : numpy array or pandas dataframe
     in the shape of (n_samples, n_features)
-    output_path : str
-    q : the quantile threshold, to act like a lowerpass filter
-    to remove the outliers. The q is in percentage, this function substitutes
+    output_path : str, default='../data/'
+    q : float, default=99
+    the quantile threshold, to act like a lowerpass filter 
+    to remove the outliers. The q is in percentage, this function substitutes 
     (100-q) quantile from reversed sorted data by the quantile of data that
     specified by user.
     Returns
@@ -39,7 +40,7 @@ def normal_seq(signal, q=99, output_path='../data/'):
     min_element = []
     transformed = []
     if isinstance(signal, pd.DataFrame):
-        signal = signal.to_numpy()
+        signal = signal.to_numpy(copy=True)
     elif isinstance(signal, list):
         signal = np.array(signal)
     if signal.ndim == 1:
@@ -59,7 +60,71 @@ def normal_seq(signal, q=99, output_path='../data/'):
     if output_path is not None:
         result = pd.DataFrame((min_element, max_element), index=['minimum',
                                                                  'maximum'])
-        result.to_csv(output_path + 'min_max.csv')
+        result.to_csv(output_path + 'min_max_inputs.csv')
+    return transformed
+
+
+def inv_transform(signal, input_path='../data/'):
+    """
+    Inversre transform is a function for transforming the output of NN to the
+    scale of real dataset.
+
+    Parameters
+    ----------
+    signal : numpy array or pandas dataframe
+    in the shape of (n_samples, n_features)
+    input_path : str, default='../data/'
+    the address of a folder that contains min_max_outputs.csv.
+    Returns
+    -------
+    inv_transformed : numpy array
+    """
+    if isinstance(signal, pd.DataFrame):
+        signal = signal.to_numpy(copy=True)
+    scales = pd.read_csv(input_path + 'min_max_outputs.csv')
+    min_s = scales.to_numpy()[0, 1:]
+    max_s = scales.to_numpy()[1, 1:]
+    scales = max_s - min_s
+    scales = scales.reshape(1, -1)
+    inv_transformed = np.multiply(signal, scales) + min_s
+    return inv_transformed
+
+
+def dev_transform(signal, input_path='../data/'):
+    """
+    normalization function that transforms each fature based on the
+    scaling of the trainning set. This transformation should be done on
+    test set(developmental set), or any new input for a trained neural
+    network. Due to existence of a denoising step in the normal_seq funciton,
+    this transformation can not reproduce the exact same of initial sequences,
+    instead it transforms to the scale of denoised version of training set.
+
+    Parameters
+    ----------
+    signal : numpy array or pandas dataframe
+    in the shape of (n_samples, n_features)
+    input_path : str, default='../data/'
+    Returns
+    -------
+    transformed : numpy array
+        a normalised sequence or features
+    """
+    transformed = []
+    if isinstance(signal, pd.DataFrame):
+        signal = signal.to_numpy(copy=True)
+    elif isinstance(signal, list):
+        signal = np.array(signal)
+    scales = pd.read_csv(input_path + 'min_max_inputs.csv')
+    max_element = scales.to_numpy()[1, 1:]
+    min_element = scales.to_numpy()[0, 1:]
+    if signal.ndim == 1:
+        transformed.append((signal-min_element)/(
+                            max_element-min_element))
+    else:
+        for i in range(signal.shape[1]):
+            transformed.append((signal[:, i]-min_element[i])/(
+                                max_element[i]-min_element[i]))
+    transformed = np.array(transformed).T  # transpose for correspondence
     return transformed
 
 
@@ -198,11 +263,20 @@ def load_signal(name,
         print(np.max(yinit[0]), "max")
         print(df.describe())
 
+    
+    global min_outputs, max_outputs
     yinit0 = []
+    min_outputs = []
+    max_outputs = []
     for y, t in zip(yinit, targets):
         if t in ["initiation", "Stall"]:
+            max_outputs.append(np.max(y))
+            min_outputs.append(np.min(y))
             trunc = y / np.max(y)  # np.percentile(y,99)
             # trunc[trunc>1] = 1
+            result = pd.DataFrame((min_outputs, max_outputs), index=['minimum',
+                                                                     'maximum'])
+            result.to_csv('../data/min_max_outputs.csv')
             yinit0.append(trunc)
 
         elif t == "DNaseI":
