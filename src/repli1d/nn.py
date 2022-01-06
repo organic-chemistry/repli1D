@@ -1,6 +1,7 @@
+import os
+
 import numpy as np
 import pandas as pd
-import os
 from keras import backend as K
 from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                              ReduceLROnPlateau)
@@ -30,7 +31,8 @@ def normal_seq(signal, q=99, output_path='../data/'):
     the quantile threshold, to act like a lowerpass filter
     to remove the outliers. The q is in percentage, this function substitutes
     (100-q) quantile from reversed sorted data by the quantile of data that
-    specified by user.
+    specified by user. if user set q=None there would be no denoising and it
+    would scale the input by its minimum, and its maximum.
     Returns
     -------
     transformed : numpy array
@@ -45,13 +47,19 @@ def normal_seq(signal, q=99, output_path='../data/'):
     elif isinstance(signal, list):
         signal = np.array(signal)
     if signal.ndim == 1:
-        max_element = np.percentile(signal, q)
+        if q is not None:
+            max_element = np.percentile(signal, q)
+        else:
+            max_element = max(signal)
         min_element = min(signal)
         signal[signal > max_element] = max_element
         transformed.append((signal-min_element)/(
                             max_element-min_element))
     else:
-        max_element = np.percentile(signal, q, axis=0)
+        if q is not None:
+            max_element = np.percentile(signal, q, axis=0)
+        else:
+            max_element = signal.max(axis=0)
         for i in range(signal.shape[1]):
             min_element.append(min(signal[:, i]))
             signal[signal[:, i] > max_element[i]] = max_element[i]
@@ -83,15 +91,15 @@ def inv_transform(signal, input_path='../data/'):
     if isinstance(signal, pd.DataFrame):
         signal = signal.to_numpy(copy=True)
     scales = pd.read_csv(input_path + 'min_max_outputs.csv')
-    min_s = scales.to_numpy()[0, 1:]
-    max_s = scales.to_numpy()[1, 1:]
+    min_s = scales.to_numpy(copy=True)[0, 1:]
+    max_s = scales.to_numpy(copy=True)[1, 1:]
     scales = max_s - min_s
     scales = scales.reshape(1, -1)
     inv_transformed = np.multiply(signal, scales) + min_s
     return inv_transformed
 
 
-def dev_transform(signal, input_path='../data/'):
+def dev_transform(signal, input_path='../data/', is_denoised=True):
     """
     normalization function that transforms each fature based on the
     scaling of the trainning set. This transformation should be done on
@@ -105,6 +113,9 @@ def dev_transform(signal, input_path='../data/'):
     signal : numpy array or pandas dataframe
     in the shape of (n_samples, n_features)
     input_path : str, default='../data/'
+    is_denoised : boolean
+    it specifies the state if original sequence is denoised by a threshold,
+    if it's set to False it means that user used q=None in normal_seq function.
     Returns
     -------
     transformed : numpy array
@@ -116,13 +127,17 @@ def dev_transform(signal, input_path='../data/'):
     elif isinstance(signal, list):
         signal = np.array(signal)
     scales = pd.read_csv(input_path + 'min_max_inputs.csv')
-    max_element = scales.to_numpy()[1, 1:]
-    min_element = scales.to_numpy()[0, 1:]
+    max_element = scales.to_numpy(copy=True)[1, 1:]
+    min_element = scales.to_numpy(copy=True)[0, 1:]
     if signal.ndim == 1:
+        if is_denoised is True:
+            signal[signal > max_element] = max_element
         transformed.append((signal-min_element)/(
                             max_element-min_element))
     else:
         for i in range(signal.shape[1]):
+            if is_denoised is True:
+                signal[signal[:, i] > max_element[i]] = max_element[i]
             transformed.append((signal[:, i]-min_element[i])/(
                                 max_element[i]-min_element[i]))
     transformed = np.array(transformed).T  # transpose for correspondence
