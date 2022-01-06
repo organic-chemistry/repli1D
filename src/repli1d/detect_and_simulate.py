@@ -686,7 +686,7 @@ else:
             smaller = np.sum( d3p[d3p<=v])
             if smaller/tot>0.05:
                 d3p[d3p<=v]=0
-                print(v,p5,"Percentile")
+                print(v,p5,"Percentile",np.mean(d3p<=v))
                 #exit()
                 break
     noiselevel = np.sum(d3p)*noise/len(d3p)
