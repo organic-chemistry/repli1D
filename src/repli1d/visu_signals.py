@@ -33,6 +33,7 @@ parser.add_argument('--fspeed', type=float, default=.3)
 parser.add_argument('--comp', type=str, default=None)
 parser.add_argument('--signal', nargs='+', type=str, default=[])
 parser.add_argument('--filename', nargs='+', type=str, default=[])
+parser.add_argument('--nonan',action="store_true")
 
 
 # Cell is use to get signal
@@ -155,6 +156,10 @@ if args.signal != []:
             if args.nan0 and "Exp" not in signal:
 
                 d3p[np.isnan(d3p)] = 0
+            if args.nonan:
+                nan =np.isnan(x) | np.isnan(d3p)
+                x=x[~nan]
+                d3p=d3p[~nan]
             if len(signal) > 20:
 
                 signal0 = os.path.split(signal)[1]
