@@ -193,7 +193,8 @@ def load_signal(name,
                 repertory_scaling_param="../data/"):
     if type(name) == str:
         df = pd.read_csv(name)
-
+    else:
+        df = name
     # wig = True
 
     if "signal" in df.columns:
@@ -230,6 +231,8 @@ def load_signal(name,
     if transform_norm == normal_seq:
         df = pd.DataFrame(transform_norm(df,
                                          output_path=repertory_scaling_param))
+    elif transform_norm == dev_transform:
+        df = pd.DataFrame(transform_norm(df))
     else:
         for col in df.columns:
             if show:
