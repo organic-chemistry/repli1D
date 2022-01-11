@@ -99,7 +99,7 @@ def inv_transform(signal, input_path='../data/'):
     return inv_transformed
 
 
-def dev_transform(signal, input_path='../data/', is_denoised=True,):
+def dev_transform(signal, input_path='../data/', is_denoised=True):
     """
     normalization function that transforms each fature based on the
     scaling of the trainning set. This transformation should be done on
@@ -293,7 +293,7 @@ def load_signal(name,
         if t in ["initiation", "Stall"]:
             max_outputs.append(np.max(y))
             min_outputs.append(np.min(y))
-            trunc = (y-np.min(y)) / np.max(y)  # np.percentile(y,99)
+            trunc = y / np.max(y)  # np.percentile(y,99)
             # trunc[trunc>1] = 1
             result = pd.DataFrame((min_outputs, max_outputs), index=['minimum',
                                                                      'maximum'])
