@@ -1,13 +1,14 @@
 from keras import backend as K
+from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
+                             ReduceLROnPlateau)
 from keras.layers.convolutional import Conv2D, MaxPooling2D
 from keras.layers.core import Activation, Dense, Dropout, Flatten
 from keras.models import Sequential
-from keras.callbacks import (EarlyStopping, History, ModelCheckpoint, ReduceLROnPlateau)
 
 
 def jm_cnn_model(X_train, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
-    """The model that Jean Michel has been implemented, and trained.
+    """The model that Jean Michel has implemented, and trained.
     """
     dropout = 0.2
     dropout = 0.01
