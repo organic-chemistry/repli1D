@@ -39,7 +39,6 @@ def normal_seq(signal, q=99, output_path='../data/'):
     transformed : numpy array
         a normalised sequence or features in the range (0,1)
     """
-    global max_element, min_element
     max_element = []
     min_element = []
     transformed = []
@@ -195,13 +194,12 @@ def load_signal(name,
     """
     This function does some modification on datset based on its column names
     and also revoke the scaling methods for different features and outputs,
-    it also makes a global mask for different chromosomes. to be able to
+    it also makes a mask for different chromosomes. to be able to
     adapt the method for different chromosomes it is necessary to call
     load_signal, and transform_seq for training set and then revoke them for
     test set or any other set (revoking two consequent load_signal on two
     different dataset then tranform_seq them may return wrong stacked
-    sequences), it is necessary due to global variable that defines in
-    load_signal.
+    sequences), it is necessary due to variable that defines in load_signal.
 
     Parameters
     ----------
@@ -226,7 +224,6 @@ def load_signal(name,
     else:
         df = name
     # wig = True
-    global mask_borders
     mask_borders = np.cumsum(df.chrom.value_counts().to_numpy(copy=True))
     if "signal" in df.columns:
         df["initiation"] = df["signal"]
@@ -312,7 +309,6 @@ def load_signal(name,
         print(np.max(yinit[0]), "max")
         print(df.describe())
 
-    global min_outputs, max_outputs
     yinit0 = []
     min_outputs = []
     max_outputs = []
@@ -347,7 +343,11 @@ def load_signal(name,
     pylab.plot(df["RFDs"])
     pylab.show()
     """
-    return df, yinit, notnan
+    dict = {"df": df,
+            "yinit": yinit,
+            "notnan": notnan,
+            "mask_borders": mask_borders}
+    return dict.values()
 
 
 def window_stack(a, stepsize=1, width=3):
