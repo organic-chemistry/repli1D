@@ -1,54 +1,61 @@
-from scipy import stats
 import itertools
-import keras
-import pandas as pd
-from repli1d.nn import load_signal,transform_norm,train_test_split,transform_seq,create_model
-import numpy as np
-import scipy.signal
-from scipy.signal import find_peaks;
 import pickle
 
-def predict_ori(name,marks,return_signal=False):
+import keras
+import numpy as np
+import pandas as pd
+import scipy.signal
+from scipy import stats
+from scipy.signal import find_peaks
+
+from repli1d.nn import (create_model, load_signal, train_test_split,
+                        transform_norm, transform_seq)
+
+
+def predict_ori(name, marks, return_signal=False):
     multi_layer_keras_model = keras.models.load_model(name)
-    #multi_layer_keras_model = keras.models.load_model("../results/whole_pip_last_K562/K562_Epi_nn_ORC2///Noneweights.hdf5")
+    # multi_layer_keras_model = keras.models.load_model("../results/whole_pip_last_K562/K562_Epi_nn_ORC2///Noneweights.hdf5")
 
-    #marks = ['H3k4me3','H3k4me1']
-    #marks = ['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac',
+    # marks = ['H3k4me3', 'H3k4me1']
+    # marks = ['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac',
     #                 'H3k4me2', 'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1"]
-    df, yinit, notnan = load_signal("./data//prune//mlformat_whole_pipe_K562.csv",
-                                    marks=marks,
-                                    targets=["initiation"],
-                                     t_norm=transform_norm, smm=5,wig=True,augment=False,show=False)
-    #root = "/home/jarbona/projet_yeast_replication/notebooks/DNaseI/repli1d/"
-    #XC = pd.read_csv(root + "coords_K562.csv", sep="\t")  # List of chromosome coordinates
-    #traint =  [1,2,3,4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
-    ch1 = int(245522847 /5000)
+    temp_dict = load_signal("./data//prune//mlformat_whole_pipe_K562.csv",
+                            marks=marks,
+                            targets=["initiation"],
+                            t_norm=transform_norm, smm=5, wig=True,
+                            augment=False, show=False)
+    df, yinit, notnan, mask_borders = temp_dict.values()
+    # root = "/home/jarbona/projet_yeast_replication/notebooks/DNaseI/repli1d/"
+    # XC = pd.read_csv(root + "coords_K562.csv", sep="\t")  # List of chromosome coordinates
+    # traint =  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] +[20, 21, 22, 23]
+    ch1 = int(245522847 / 5000)
     df = df[:ch1]
-    yinit =yinit[:ch1]
-    #train, test = train_test_split(XC, traint, valt, notnan)
-    X_train_us, y_train_us = df , yinit
+    yinit = yinit[:ch1]
+    # train, test = train_test_split(XC, traint, valt, notnan)
+    X_train_us, y_train_us = df, yinit
 
-    window=51
+    window = 51
     vtrain = transform_seq(X_train_us, y_train_us, 1, window)
     if not return_signal:
-        return  multi_layer_keras_model.predict(vtrain[0])
+        return multi_layer_keras_model.predict(vtrain[0])
     else:
-         return  multi_layer_keras_model.predict(vtrain[0]),vtrain,multi_layer_keras_model
+        return multi_layer_keras_model.predict(vtrain[0]), vtrain, multi_layer_keras_model
 
 
 if __name__ == "__main__":
 
     which = "initiation"
-    all_marks=True
+    all_marks = True
     global_scores = []
 
     if which == "ORC":
         marks = ['H2az', 'H3k27ac', 'H3k79me2', 'H3k27me3', 'H3k9ac',
-                              'H3k4me2', 'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3', "H4k20me1","AT_5","AT_20","AT_30"]
+                 'H3k4me2', 'H3k4me3', 'H3k9me3', 'H3k4me1', 'H3k36me3',
+                 "H4k20me1", "AT_5", "AT_20", "AT_30"]
         name_nn = "data/prune/results___whole_pip_last_K562___K562_Epi_nn_ORC2_AT___Noneweights.hdf5"
-        ref,vtrain,multi_layer_keras_model = predict_ori(name_nn,
-                                marks=marks
-                                 ,return_signal=True)
+        ref, vtrain, multi_layer_keras_model = predict_ori(name_nn,
+                                                           marks=marks,
+                                                           return_signal=True)
 
         name = "./data//prune//mlformat_whole_pipe_K562.csv"
         t = pd.read_csv(name)
