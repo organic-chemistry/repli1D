@@ -186,8 +186,7 @@ def load_signal(name,
                 repertory_scaling_param="../data/"):
     if type(name) == str:
         df = pd.read_csv(name)
-    else:
-        df = name
+
     # wig = True
 
     if "signal" in df.columns:
@@ -224,8 +223,6 @@ def load_signal(name,
     if transform_norm == normal_seq:
         df = pd.DataFrame(transform_norm(df,
                                          output_path=repertory_scaling_param))
-    elif transform_norm == dev_transform:
-        df = pd.DataFrame(transform_norm(df))
     else:
         for col in df.columns:
             if show:
@@ -342,95 +339,6 @@ def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     return X, Y
 
 
-def create_model(X_train, targets, nfilters, kernel_length,
-                 loss="binary_crossentropy"):
-    # print(X_train.shape,targets,nfilters,kernel_length)
-
-    dropout = 0.2
-    dropout = 0.01
-    K.set_image_data_format('channels_last')
-
-    multi_layer_keras_model = Sequential()
-    multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(Dropout(dropout))
-
-    multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(Dropout(dropout))
-
-    multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    multi_layer_keras_model.add(Dropout(dropout))
-
-    multi_layer_keras_model.add(Flatten())
-    multi_layer_keras_model.add(Dense(len(targets)))
-    multi_layer_keras_model.add(Activation("sigmoid"))
-    # multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-    #                                loss='mean_squared_logarithmic_error')
-    multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-                                    loss=loss)
-    multi_layer_keras_model.summary()
-    return multi_layer_keras_model
-
-
-def create_model_imp(X_train, targets, nfilters, kernel_length,
-                     loss="binary_crossentropy"):
-    inc = 1.4
-    print(X_train.shape, targets, nfilters, kernel_length)
-
-    K.set_image_data_format('channels_last')
-    drop = 0.2
-    multi_layer_keras_model = Sequential()
-    multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(Dropout(drop))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc), kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    # multi_layer_keras_model.add(Dropout(drop))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-
-    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**2), kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    # multi_layer_keras_model.add(Dropout(drop))
-
-    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**3), kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    # multi_layer_keras_model.add(Dropout(drop))
-    multi_layer_keras_model.add(Conv2D(filters=int(nfilters*inc**4), kernel_size=(
-        1, kernel_length), input_shape=X_train.shape[1:]))
-    multi_layer_keras_model.add(Activation('relu'))
-    multi_layer_keras_model.add(MaxPooling2D(pool_size=(1, 2)))
-    # multi_layer_keras_model.add(Dropout(drop))
-
-    """
-    multi_layer_keras_model.add(Reshape((-1,nfilters)))
-
-    multi_layer_keras_model.add(Bidirectional(LSTM(nfilters,return_sequences=True)))
-    """
-    multi_layer_keras_model.add(Flatten())
-    #
-    multi_layer_keras_model.add(Dense(len(targets)))
-    multi_layer_keras_model.add(Activation("sigmoid"))
-    # multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-    #                                loss='mean_squared_logarithmic_error')
-    multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-                                    loss=loss)
-    multi_layer_keras_model.summary()
-    return multi_layer_keras_model
-
-
 def train_test_split(chrom, ch_train, ch_test, notnan):
     print(list(ch_train), list(ch_test))
 
@@ -463,7 +371,9 @@ if __name__ == "__main__":
     import os
     from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
-    from repli1d.nn_models_jm import create_model,load_model
+    from repli1d.models import jm_cnn_model as create_model
+    from keras.models import  load_model
+
 
     parser = argparse.ArgumentParser()
 
@@ -586,20 +496,20 @@ if __name__ == "__main__":
                     assert(v not in traint)
                 for v in valt:
                     assert(v not in traint)
-            train, test = train_test_split(XC, traint, valt, notnan)
-            X_train_us, X_test_us, y_train_us, y_test_us = df[train], df[test], yinit[train], yinit[test]
+            train, val = train_test_split(XC, traint, valt, notnan)
+            X_train_us, X_val_us, y_train_us, y_val_us = df[train], df[val], yinit[train], yinit[val]
 
             vtrain = transform_seq(X_train_us, y_train_us, 1, window)
-            vtest = transform_seq(X_test_us, y_test_us, 1, window)
-            del X_train_us, X_test_us, y_train_us, y_test_us
+            vval = transform_seq(X_val_us, y_val_us, 1, window)
+            del X_train_us, X_val_us, y_train_us, y_val_us
             if X_train == []:
                 X_train, y_train = vtrain
-                X_test, y_test = vtest
+                X_val, y_val = vval
             else:
                 X_train = np.concatenate([X_train, vtrain[0]])
                 y_train = np.concatenate([y_train, vtrain[1]])
-                X_test = np.concatenate([X_test, vtest[0]])
-                y_test = np.concatenate([y_test, vtest[1]])
+                X_val = np.concatenate([X_val, vval[0]])
+                y_val = np.concatenate([y_val, vval[1]])
 
         X_train, y_train = unison_shuffled_copies(X_train, y_train)
 
@@ -686,10 +596,10 @@ if __name__ == "__main__":
                                         patience=3, min_lr=0.0001)]
 
             if args.datafile:
-                validation_data = ()
-                validation_split = 0.1
+                validation_data = (X_val, y_val)
+                validation_split = 0.
             else:
-                validation_data = (X_test, y_test)
+                validation_data = (X_val, y_val)
                 validation_split = 0.
             history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
                                                                y=y_train[sel],

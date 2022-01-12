@@ -3,7 +3,7 @@ from keras.layers.convolutional import Conv2D, MaxPooling2D
 from keras.layers.core import Activation, Dense, Dropout, Flatten
 from keras.models import Sequential
 from keras.callbacks import (EarlyStopping, History, ModelCheckpoint, ReduceLROnPlateau)
-
+from keras import metrics
 
 def jm_cnn_model(X_train, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
@@ -36,6 +36,7 @@ def jm_cnn_model(X_train, targets, nfilters, kernel_length,
     # multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
     #                                loss='mean_squared_logarithmic_error')
     multi_layer_keras_model.compile(optimizer='adadelta',  # 'adam'
-                                    loss=loss)
+                                    loss=loss,
+                                    metrics=[metrics.MSE])
     multi_layer_keras_model.summary()
     return multi_layer_keras_model
