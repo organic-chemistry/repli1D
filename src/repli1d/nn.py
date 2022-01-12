@@ -2,20 +2,6 @@ import os
 
 import numpy as np
 import pandas as pd
-<<<<<<< HEAD
-from keras import backend as K
-from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
-                             ReduceLROnPlateau)
-from keras.layers.convolutional import Conv2D, MaxPooling2D
-from keras.layers.core import Activation, Dense, Dropout, Flatten, Reshape
-from keras.layers.recurrent import LSTM
-from keras.layers.wrappers import Bidirectional
-from keras.models import Sequential, load_model
-from keras.utils.generic_utils import is_all_none
-=======
-
->>>>>>> c4c05a0acddb1170be1259579eab2c659e711aed
-
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
