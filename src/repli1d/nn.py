@@ -2,16 +2,6 @@ import os
 
 import numpy as np
 import pandas as pd
-from keras import backend as K
-from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
-                             ReduceLROnPlateau)
-from keras.layers.convolutional import Conv2D, MaxPooling2D
-from keras.layers.core import Activation, Dense, Dropout, Flatten, Reshape
-from keras.layers.recurrent import LSTM
-from keras.layers.wrappers import Bidirectional
-from keras.models import Sequential, load_model
-from keras.utils.generic_utils import is_all_none
-
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
@@ -540,6 +530,9 @@ if __name__ == "__main__":
 
     import argparse
     import os
+    from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
+                                 ReduceLROnPlateau)
+    from repli1d.nn_models_jm import create_model,load_model
 
     parser = argparse.ArgumentParser()
 
@@ -629,7 +622,7 @@ if __name__ == "__main__":
             df, yinit, notnan = load_signal(
                 name, marks, targets=args.targets, t_norm=transform_norm,
                 smm=args.sm, wig=wig, augment=args.augment,
-                add_noise=args.add_noise)
+                add_noise=args.add_noise,repertory_scaling_param=args.rootnn+"/")
             """
             traint = [1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19]
             valt = [4, 18, 21, 22]
