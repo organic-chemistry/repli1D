@@ -10,6 +10,7 @@ from keras.layers.core import Activation, Dense, Dropout, Flatten, Reshape
 from keras.layers.recurrent import LSTM
 from keras.layers.wrappers import Bidirectional
 from keras.models import Sequential, load_model
+from keras.utils.generic_utils import is_all_none
 
 from repli1d.analyse_RFD import nan_polate, smooth
 
@@ -191,12 +192,42 @@ def load_signal(name,
                 augment=None, show=True, add_noise=False,
                 filter_anomaly=False,
                 repertory_scaling_param="../data/"):
+    """
+    This function does some modification on datset based on its column names
+    and also revoke the scaling methods for different features and outputs,
+    it also makes a global mask for different chromosomes. to be able to
+    adapt the method for different chromosomes it is necessary to call
+    load_signal, and transform_seq for training set and then revoke them for
+    test set or any other set (revoking two consequent load_signal on two
+    different dataset then tranform_seq them may return wrong stacked
+    sequences), it is necessary due to global variable that defines in
+    load_signal.
+
+    Parameters
+    ----------
+    name : str or pd.Dataframe
+    the address of a csv file or pandas dataframe
+    marks : list
+    a list that contains the names of markers as features for NN.
+    targets : list
+    a list that contains columns names of desired outputs of NN.
+    repertory_scaling_param : str
+    the address to save the scaling parameters in it.
+    Returns
+    -------
+    df : numpy array
+        a scaled dataset of features
+    y_init : numpy array
+        a scaled dataset of outputs
+    notnan : numpy array
+    """
     if type(name) == str:
         df = pd.read_csv(name)
     else:
         df = name
     # wig = True
-
+    global mask_borders
+    mask_borders = np.cumsum(df.chrom.value_counts().to_numpy(copy=True))
     if "signal" in df.columns:
         df["initiation"] = df["signal"]
 
@@ -239,9 +270,6 @@ def load_signal(name,
                 print(col)
             if col not in ["DNaseI", "initiation", "Meth", "Meth450", "RFDe",
                            "MRTe", "RFDs", "MRTs"]:
-                if transform_norm == normal_seq:
-                    df = pd.DataFrame(transform_norm(df))
-                    break
                 df[col] = transform_norm(df[col])
             elif col == "DNaseI":
                 df[col] = transform_DNase(df[col])
@@ -284,7 +312,6 @@ def load_signal(name,
         print(np.max(yinit[0]), "max")
         print(df.describe())
 
-
     global min_outputs, max_outputs
     yinit0 = []
     min_outputs = []
@@ -293,7 +320,7 @@ def load_signal(name,
         if t in ["initiation", "Stall"]:
             max_outputs.append(np.max(y))
             min_outputs.append(np.min(y))
-            trunc = y / np.max(y)  # np.percentile(y,99)
+            trunc = (y - np.min(y)) / (np.max(y)-np.min(y))  # np.percentile(y,99)
             # trunc[trunc>1] = 1
             result = pd.DataFrame((min_outputs, max_outputs), index=['minimum',
                                                                      'maximum'])
@@ -324,14 +351,59 @@ def load_signal(name,
 
 
 def window_stack(a, stepsize=1, width=3):
+    """
+    This function makes windows of the size specified as 'width' 
+    and sweeping over dataset with the specified step size.
+
+    Parameters
+    ----------
+    a : numpy array
+    in the shape of (n_samples, n_features)
+    step_size : int
+    width : int
+    Returns
+    -------
+    window_stacked : numpy array or pandas dataframe
+        in the shape of (n_windows, n_features*width)
+        an array of stacked windows, column wise.       
+    """
+    window_stacked = []
     # print([[i,1+i-width or None,stepsize] for i in range(0,width)])
-    return np.hstack([a[i:1+i-width or None:stepsize] for i in range(0, width)])
+    for index, elem in enumerate(mask_borders):
+        if index != 0:
+            boundary = mask_borders[index-1] + 1
+        else:
+            boundary = 0
+        b = a[boundary: elem+1]
+        window_stacked.append([b[i:1+i-width or None:stepsize] for i in range(0, width)])
+    window_stacked = np.hstack(window_stacked)
+    return window_stacked
 
 
 def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
+    """
+    This function reshapes the output of window_stack function into a
+    suitable shape for neural network.
+
+    Parameters
+    ----------
+    Xt : numpy array
+    in the shape of (n_samples, n_features)
+    yt : numpy array
+    in the shape of (n_samples, n_features)
+    step_size : int
+    width : int
+    impair : bool
+    Returns
+    -------
+    X : numpy array
+        in the shape of (n_windows, 1, width, n_features)  
+    Y : numpy array
+        in the shape of (n_windows, n_outputs)    
+    """
     # X = (seq,dim)
     # y = (seq)
-    Xt = np.array(Xt, dtype=np.float16)
+    # Xt = np.array(Xt, dtype=np.float16)
     yt = np.array(yt, dtype=np.float16)
     # print(Xt.shape, yt.shape)
 
@@ -713,8 +785,8 @@ if __name__ == "__main__":
     ###################################
     # predict
     print("Predict")
-    if args.listfile == [] or args.roadmap or ( len(args.predict_files) != 0):
-        if marks ==  ["RFDs", "MRTs"]:
+    if args.listfile == [] or args.roadmap or (len(args.predict_files) != 0):
+        if marks == ["RFDs", "MRTs"]:
             marks = ["RFDe", "MRTe"]
         to_pred = []
         if len(args.predict_files) == 0:
@@ -740,9 +812,9 @@ if __name__ == "__main__":
 
         for namep in to_pred:
 
-            cellp = os.path.split(namep)[1].split("_")[0]#namep.split("_")[-1][:-4]
+            cellp = os.path.split(namep)[1].split("_")[0]  # namep.split("_")[-1][:-4]
 
-            print("Reading %s, cell %s"%(namep,cellp))
+            print("Reading %s, cell %s" % (namep, cellp))
             df, yinit, notnan = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,
                 wig=wig, smm=args.sm, augment=args.augment,
@@ -788,7 +860,7 @@ if __name__ == "__main__":
                 if target == "OKSeq":
                     XC["signalValue"] = XC["signalValue"] * 2-1
             # XC.to_csv("nn_hela_fk.csv",index=False,sep="\t")
-                if target in ["initiation","Init"]:
+                if target in ["initiation", "Init"]:
                     namew = namep.split("/")[-1][:-4]
                     ns = rootnn+"/nn_%s.csv" % (namew)
                     s = 0
