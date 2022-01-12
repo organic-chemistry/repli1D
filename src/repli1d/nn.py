@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+
 from repli1d.analyse_RFD import nan_polate, smooth
 
 
@@ -337,12 +338,12 @@ def load_signal(name,
             "yinit": yinit,
             "notnan": notnan,
             "mask_borders": mask_borders}
-    return dict.values()
+    return dict
 
 
-def window_stack(a, stepsize=1, width=3):
+def window_stack(a, mask_borders, stepsize=1, width=3):
     """
-    This function makes windows of the size specified as 'width' 
+    This function makes windows of the size specified as 'width'
     and sweeping over dataset with the specified step size.
 
     Parameters
@@ -351,6 +352,9 @@ def window_stack(a, stepsize=1, width=3):
     in the shape of (n_samples, n_features)
     step_size : int
     width : int
+    mask_borders : list
+    list of end positions of each chromosome as elements along
+    the first axis of dataset.
     Returns
     -------
     window_stacked : numpy array or pandas dataframe
@@ -401,9 +405,9 @@ def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
     assert(len(yt.shape) == 2)
     if impair:
         assert(width % 2 == 1)
-    X = window_stack(Xt, stepsize, width).reshape(-1, width, Xt.shape[-1])[::, np.newaxis, ::, ::]
+    X = window_stack(Xt, mask_borders, stepsize, width).reshape(-1, width, Xt.shape[-1])[::, np.newaxis, ::, ::]
     # [::,np.newaxis] #Take the value at the middle of the segment
-    Y = window_stack(yt[::, np.newaxis], stepsize, width)[::, width//2]
+    Y = window_stack(yt[::, np.newaxis], mask_borders, stepsize, width)[::, width//2]
 
     # print(X.shape, Y.shape)
     # exit()
@@ -530,9 +534,11 @@ if __name__ == "__main__":
 
     import argparse
     import os
+
     from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
-    from repli1d.nn_models_jm import create_model,load_model
+
+    from repli1d.nn_models_jm import create_model, load_model
 
     parser = argparse.ArgumentParser()
 
@@ -619,10 +625,11 @@ if __name__ == "__main__":
         X_train = []
         for name in listfile:
             print(name)
-            df, yinit, notnan = load_signal(
+            temp_dict = load_signal(
                 name, marks, targets=args.targets, t_norm=transform_norm,
                 smm=args.sm, wig=wig, augment=args.augment,
                 add_noise=args.add_noise,repertory_scaling_param=args.rootnn+"/")
+            df, yinit, notnan, mask_borders = temp_dict.values()
             """
             traint = [1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19]
             valt = [4, 18, 21, 22]
@@ -808,11 +815,11 @@ if __name__ == "__main__":
             cellp = os.path.split(namep)[1].split("_")[0]  # namep.split("_")[-1][:-4]
 
             print("Reading %s, cell %s" % (namep, cellp))
-            df, yinit, notnan = load_signal(
+            temp_dict = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,
                 wig=wig, smm=args.sm, augment=args.augment,
                 filter_anomaly=args.filter_anomaly)
-
+            df, yinit, notnan, mask_borders = temp_dict.values()
             X, y = transform_seq(df, yinit, 1, window)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)
@@ -838,10 +845,11 @@ if __name__ == "__main__":
     else:
         for namep in args.listfile:
             marks = ["RFDe", "MRTe"]
-            df, yinit, notnan = load_signal(
+            temp_dict = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,
                 smm=args.sm, augment=args.augment,
                 filter_anomaly=args.filter_anomaly)
+            df, yinit, notnan, mask_borders = temp_dict.values()
             X, y = transform_seq(df, yinit, 1, window)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)
