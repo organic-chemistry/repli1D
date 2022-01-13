@@ -360,18 +360,22 @@ def window_stack(a, mask_borders, stepsize=1, width=3):
     """
     window_stacked = []
     # print([[i,1+i-width or None,stepsize] for i in range(0,width)])
+
     for index, elem in enumerate(mask_borders):
         if index != 0:
-            boundary = mask_borders[index-1] + 1
+            boundary = mask_borders[index-1]
         else:
             boundary = 0
-        b = a[boundary: elem+1]
-        window_stacked.append([b[i:1+i-width or None:stepsize] for i in range(0, width)])
-    window_stacked = np.hstack(window_stacked)
-    return window_stacked
+        b = a[boundary: elem]
+        window_stacked.append(np.hstack([b[i:1+i-width or None:stepsize] for i in range(0, width)]))
+    if len(mask_borders) == 1:
+        return window_stacked[0]
+    else :
+        return np.concatenate(window_stacked)
+    #return window_stacked
 
 
-def transform_seq(Xt, yt, stepsize=1, width=3, impair=True):
+def transform_seq(Xt, yt, mask_borders,stepsize=1, width=3, impair=True):
     """
     This function reshapes the output of window_stack function into a
     suitable shape for neural network.

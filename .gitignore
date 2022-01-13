@@ -47,3 +47,30 @@ MANIFEST
 
 # Per-project virtualenvs
 .venv*/
+
+# Data and others
+README.md
+data/Cerevisae_1000.csv
+data/GM06990_5000.csv
+data/Hela_5000.csv
+data/K562_2000_merged_histones_init.csv.gz
+data/K562_5000.csv
+data/nn_K562_marks.hdf5
+data_hela/MRT_10kb.csv
+data_hela/OKSeq_5kb.csv
+data_hela/ori_position.tsv
+notebook_demo/Cutting MRT.ipynb
+notebook_demo/Running NN on marks.ipynb
+notebook_demo/Sim_with_cascade.ipynb
+notebook_demo/Typical_sim.ipynb
+spec-file.txt
+src/repli1d/convert_profile_to_bed.py
+src/repli1d/extract_AT_hook.py
+src/repli1d/get_highest_correlation.py
+src/repli1d/models.py
+src/repli1d/profile_generation.py
+src/repli1d/prune_marks.py
+src/repli1d/small_opty.py
+src/repli1d/whole_pipeline_extra.py
+src/repli1d/whole_pipeline_from_data_file.py
+
