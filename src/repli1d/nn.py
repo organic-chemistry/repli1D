@@ -184,10 +184,10 @@ def load_signal(name,
                 repertory_scaling_param="../data/"):
     """
     This function does some modification on datset based on its column names
-    and also revoke the scaling methods for different features and outputs,
+    and also invoke the scaling methods for different features and outputs,
     it also makes a mask for different chromosomes. to be able to
     adapt the method for different chromosomes it is necessary to call
-    load_signal, and transform_seq for training set and then revoke them for
+    load_signal, and transform_seq for training set and then invoke them for
     test set or any other set (revoking two consequent load_signal on two
     different dataset then tranform_seq them may return wrong stacked
     sequences), it is necessary due to variable that defines in load_signal.
@@ -447,7 +447,7 @@ if __name__ == "__main__":
     import argparse
     import os
 
-    from keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
+    from tensorflow.keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
     from repli1d.models import jm_cnn_model as create_model
     from keras.models import  load_model
@@ -578,8 +578,8 @@ if __name__ == "__main__":
             train, val = train_test_split(XC, traint, valt, notnan)
             X_train_us, X_val_us, y_train_us, y_val_us = df[train], df[val], yinit[train], yinit[val]
 
-            vtrain = transform_seq(X_train_us, y_train_us, 1, window)
-            vval = transform_seq(X_val_us, y_val_us, 1, window)
+            vtrain = transform_seq(X_train_us, y_train_us, mask_borders, 1, window)
+            vval = transform_seq(X_val_us, y_val_us, mask_borders, 1, window)
             del X_train_us, X_val_us, y_train_us, y_val_us
             if X_train == []:
                 X_train, y_train = vtrain
@@ -664,7 +664,6 @@ if __name__ == "__main__":
             print(np.sum(sel), sel.shape)
             print(X_train.shape, X_train[sel].shape)
             cp = [EarlyStopping(patience=3)]
-            batch_size = 128
             if selp == "all" and False:
                 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
                                               patience=3, min_lr=0.0001)
