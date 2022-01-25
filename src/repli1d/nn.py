@@ -447,7 +447,6 @@ if __name__ == "__main__":
 
     import argparse
     import os
-    import tensorflow as tf
     from tensorflow.keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
     from repli1d.models import jm_cnn_model as create_model
@@ -609,14 +608,9 @@ if __name__ == "__main__":
         weight= args.weight
         if weight is None:
             weight = rootnn+"/%sweights.hdf5" % cell
-        try:
-            multi_layer_keras_model = load_model(weight)
-        except:
-            from keras.utils import CustomObjectScope
-            from keras.initializers import glorot_uniform
 
-            with CustomObjectScope({'GlorotUniform': glorot_uniform()}):
-                model = load_model(weight)
+
+        model = load_model(weight)
 
         multi_layer_keras_model.summary()
         del X_train, y_train
