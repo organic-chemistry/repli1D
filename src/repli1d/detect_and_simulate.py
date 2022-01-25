@@ -526,7 +526,7 @@ for start, end, ch, ndiff in list_task:
     #d3p=d3p**3
     d3pl.append([x, d3p,stallp])
 
-
+print(d3pl[0][1][:100],np.sum(np.isnan(d3pl[0][1])))
 propagateNan=False
 mrt_res=args.mrt_res
 
@@ -723,7 +723,7 @@ else:
                                                np.split(Pa,sp),np.split(Pt,sp),
                                                split_ch,np.split(MRTstd,sp),np.split(bigmask,sp)):
             start_seg, end_seg, ch = split
-
+            #print("segments",start_seg,ch)
             lres[ch ][0][start_seg:end_seg] = MRTp
             lres[ch ][1][start_seg:end_seg] = MRTs
             lres[ch ][2][start_seg:end_seg] = RFDs
@@ -826,6 +826,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     else:
         sch = "chr%s" % str(ch)
 
+    print(mask[:100])
     if type(GData) == list:
         MRT = mapboth(MRT, MRTp, int(mrt_res/resolution), pad=True)
 

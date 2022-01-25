@@ -490,7 +490,7 @@ if __name__ == "__main__":
     parser.add_argument('--datafile', action="store_true")
     parser.add_argument('--add_noise', action="store_true")
     parser.add_argument('--filter_anomaly', action="store_true")
-    
+
 
     args = parser.parse_args()
 
@@ -765,7 +765,7 @@ if __name__ == "__main__":
                 smm=args.sm, augment=args.augment,
                 filter_anomaly=args.filter_anomaly)
             df, yinit, notnan, mask_borders = temp_dict.values()
-            X, y = transform_seq(df, yinit, 1, window)
+            X, y = transform_seq(df, yinit,[len(df)],1, window)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)
             del df, X, y
