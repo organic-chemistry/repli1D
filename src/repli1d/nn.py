@@ -609,7 +609,15 @@ if __name__ == "__main__":
         weight= args.weight
         if weight is None:
             weight = rootnn+"/%sweights.hdf5" % cell
-        multi_layer_keras_model = tf.keras.models.load_model(weight)
+        try:
+            multi_layer_keras_model = load_model(weight)
+        except:
+            from keras.utils import CustomObjectScope
+            from keras.initializers import glorot_uniform
+
+            with CustomObjectScope({'GlorotUniform': glorot_uniform()}):
+                model = load_model(weight)
+
         multi_layer_keras_model.summary()
         del X_train, y_train
 
