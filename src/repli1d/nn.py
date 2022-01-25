@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from repli1d.analyse_RFD import nan_polate, smooth
+from repli1d.models import jm_cnn_model
 
 
 def normal_seq(signal, q=99, output_path='../data/'):
@@ -456,6 +457,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--cell', type=str, default=None)
+    parser.add_argument('--ml_model', type=str, default=jm_cnn_model)
     parser.add_argument('--rootnn', type=str, default=None)
     parser.add_argument('--nfilters', type=int, default=15)
     parser.add_argument('--resolution', type=int, default=5)
@@ -488,6 +490,7 @@ if __name__ == "__main__":
     parser.add_argument('--datafile', action="store_true")
     parser.add_argument('--add_noise', action="store_true")
     parser.add_argument('--filter_anomaly', action="store_true")
+    
 
     args = parser.parse_args()
 

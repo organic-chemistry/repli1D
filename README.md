@@ -6,7 +6,7 @@ a Probability of Origin Density Lansdcape (PODLS)
 
 
 Install
-===========
+=======
 
 ```
 git clone git@github.com:organic-chemistry/repli1D.git
@@ -17,7 +17,7 @@ python setup.py develop
 ```
 
 Replicate results of the article
-===========
+================================
 data for K562 GM Hela and Cerevisae are available in data/ directory at a 5000 bp resolution for human cells and 1000 bp resolution for Cerevisae.
 For each cell line, (here Hela for example) the following command:
 ```
@@ -37,7 +37,7 @@ For each iteration i, it will create three folders (inside my-folder):
 
 
 Running the code on a new data (refered as celltype)
-===========
+====================================================
 This require to create a data file in the data folder name celltype_5000.csv with 5000 the resolution of the bins.
 It is a csv file with column: chrom,chromStart,chromEnd,MRT,OKSeq
 Then a new entry cellline must be added in the config.yaml file (by copying K562 of Cerevisae for example) and by adapting the parameter to the organism.
@@ -77,4 +77,11 @@ python src/repli1d/detect_and_simulate.py --cell Cerevisae --signal MCM-beda  --
 
 ```
 python src/repli1d/whole_pipeline.py --cell Raji --savenoise --add_noise --root results/Raji_mask_bothopti_snoise_nnoise_std
+```
+Training of Neural Networks
+===========================
+Neural networks can be chosen by argument "ml_model" that can be specified to "jm_cnn_model", "jm_cnn_model_beta", "resnet", etc. (default value is jm_cnn_model.)
+for training the network on terminal, one sample code is as follows:
+```
+python src/repli1d/nn.py  --noenrichment --targets initiation --root training_dir/nn_K562_2000/ --listfile data/K562_2000_merged_histones_init.csv  --window 101 --wig 0 --predict_files data/K562_2000_merged_histones_init.csv --marks H3K4me1 H3K4me3 H3K27me3 H3K36me3 H3K9me3 H2A.Z H3K79me2 H3K9ac H3K4me2 H3K27ac H4K20me1 --datafile
 ```
