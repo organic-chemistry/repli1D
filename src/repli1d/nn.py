@@ -447,7 +447,7 @@ if __name__ == "__main__":
 
     import argparse
     import os
-
+    import tensorflow as tf
     from tensorflow.keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
     from repli1d.models import jm_cnn_model as create_model
@@ -609,7 +609,7 @@ if __name__ == "__main__":
         weight= args.weight
         if weight is None:
             weight = rootnn+"/%sweights.hdf5" % cell
-        multi_layer_keras_model = load_model(weight)
+        multi_layer_keras_model = tf.keras.models.load_model(weight)
         multi_layer_keras_model.summary()
         del X_train, y_train
 
