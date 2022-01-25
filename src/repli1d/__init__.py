@@ -18,7 +18,7 @@ __all__ = ['explore_param_yeast', 'detect_and_optimise_lgbis',
            'nn', '__init__', 'single_mol_analysis',
            'get_highest_correlation', 'detect_and_optimise_lg',
            'convert_profile_to_bed', 'scipy_min2', 'scipy_min',
-           'convert_Hadi_to_csv', 'development']
+           'convert_Hadi_to_csv']
 try:
     # Change here if project is renamed and does not equal the package name
     dist_name = 'repli1D'
