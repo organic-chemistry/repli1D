@@ -217,13 +217,13 @@ def cut_larger_than(mask, size=2):
     # Merge smaller than size
     # First swich from false to True
     for i, (v, s) in enumerate(zip(boolv, sizes)):
-        if s < size and not v:
+        if s <= size and not v:
             boolv[i] = True
 
-    # print(deltas)
-    # print(chunks)
-    # print(boolv)
-    # print(sizes)
+    #print(deltas)
+    #print(chunks)
+    #print(boolv)
+    #print(sizes)
 
     start = 0
     end = 0
