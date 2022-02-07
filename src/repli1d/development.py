@@ -19,7 +19,7 @@ if __name__ == '__main__':
                                  'H3K9ac', 'H3K4me2', 'H3K4me3', 'H3K9me3',
                                  'H3K4me1', 'H3K36me3', "H4K20me1"])
     parser.add_argument('--output', type=str, default=['initiation'])
-    parser.add_argument('--output_dir', type=str, default='data/')
+    parser.add_argument('--output_dir', type=str, default='data_representation/')
     parser.add_argument('--image_format', type=str, default='png')
 
     args = parser.parse_args()
