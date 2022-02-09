@@ -79,6 +79,39 @@ def generate_newp_no_corre(pos, proba, avail,actual_pos=[],cascade={},previous =
     finished = False
 
     #first call generate ordered list of origins
+
+    size = np.sum(proba != 0)
+    newp = list(np.random.choice(pos,size=min(size,avail),
+                                     replace=False,
+                                      p=proba/np.sum(proba)))
+
+
+
+    # Set the proba of initiation to 0
+    for ipos in newp:
+        proba[ipos] = 0
+
+    newp.sort()
+    finished=False
+
+    if len(newp) != avail:
+        finished=True
+
+    return pos, proba, newp, finished,[]
+
+
+def generate_newp_no_corre_old(pos, proba, avail,actual_pos=[],cascade={},previous =[]):
+
+    #Return a list of #avail site
+    #Modify proba and previous
+    #print(cascade)
+    if cascade != {} :
+        pos, proba, newp, finished = generate_newp_cascade(pos, proba, avail, actual_pos=actual_pos,cascade=cascade)
+        return pos, proba, newp, finished,[]
+    newp = []
+    finished = False
+
+    #first call generate ordered list of origins
     if previous == [] and np.sum(proba) != 0:
         size = np.sum(proba != 0)
         previous = list(np.random.choice(pos,size=size,
@@ -111,8 +144,6 @@ def generate_newp_no_corre(pos, proba, avail,actual_pos=[],cascade={},previous =
     newp.sort()
 
     return pos, proba, newp, finished,previous
-
-
 
 class Chrom:
     def __init__(self,start,end,timespend=[]):
@@ -819,7 +850,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             for chrom in list_chrom:
                 termination, iavail = chrom.evolve(time_evolve,proba,filter_termination=filter_termination)
 
-                chrom.check()
+                #chrom.check()
                 avail += iavail
                 newavail += iavail
 
