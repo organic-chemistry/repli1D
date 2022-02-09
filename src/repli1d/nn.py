@@ -400,7 +400,7 @@ def transform_seq(Xt, yt, mask_borders,stepsize=1, width=3, impair=True):
     # X = (seq,dim)
     # y = (seq)
     # Xt = np.array(Xt, dtype=np.float16)
-    yt = np.array(yt, dtype=np.float16)
+    yt = np.array(yt, dtype=np.float32)
     # print(Xt.shape, yt.shape)
 
     assert(len(Xt.shape) == 2)

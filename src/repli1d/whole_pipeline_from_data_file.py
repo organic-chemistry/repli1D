@@ -124,7 +124,8 @@ maxT = args.repTime * args.repTime_max_factor
 #maxT *= 100
 standard_parameters += "--ndiff %.2f %s"%(ndiff,cellcmd)
 
-cmd=[]
+cmd = [f"mkdir -p {args.root}"]
+cmd += [f"cp {args.name_script} {args.root}/"]
 
 nloop=5
 if args.on_input_signal != None:
@@ -228,6 +229,10 @@ for cm in cmd:
             if exe:
                 process = subprocess.Popen(sup, shell=True, stdout=subprocess.PIPE)
                 process.wait()
-
+    else:
+        script.append(cm)
+        if exe:
+            process = subprocess.Popen(cm, shell=True, stdout=subprocess.PIPE)
+            process.wait()
 with open(args.name_script,"w") as f:
     f.writelines("\n".join(script))
