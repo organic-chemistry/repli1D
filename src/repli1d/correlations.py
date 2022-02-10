@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--correlation', type=str, default='spearman')
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
-                        default='data/K562_2000_merged_histones_init.csv')
+                        default='data/K562_2000_merged_histones_init.csv.gz')
     parser.add_argument('--marks', nargs='+', type=str,
                         default=['H2A.Z', 'H3K27ac', 'H3K79me2', 'H3K27me3',
                                  'H3K9ac', 'H3K4me2', 'H3K4me3', 'H3K9me3',
@@ -39,16 +39,16 @@ if __name__ == '__main__':
             df[i] = np.log10(df[i])
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(10, 8))
-            normalize = mpl.colors.Normalize(vmin=-1, vmax=1)
+            normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
             ax = sns.clustermap(corrMatrix, annot=True, row_cluster=True,
-                                col_cluster=True,
-                                cmap=sns.diverging_palette(20, 220, n=50),
+                                col_cluster=True, metric='correlation',
+                                cmap=sns.diverging_palette(220, 20, n=50),
                                 norm=normalize)  # cbar_pos=(0, .2, .03, .4)
         plt.title("Spearman correlation coefficients for logs of values {} epigenetic markers".format(args.cell_line), x=10, y=1)
-        plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,
-                                          args.correlation,
-                                          args.cell_line,
-                                          i, args.image_format),
+        plt.savefig('{}{}{}___{}.{}'.format(args.output_dir,
+                                            args.correlation,
+                                            args.cell_line,
+                                            i, args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
 
@@ -66,9 +66,9 @@ if __name__ == '__main__':
             df[i] = np.log10(df[i])
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(8, 8))
-            normalize = mpl.colors.Normalize(vmin=-1, vmax=1)
+            normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
             ax = sns.heatmap(corrMatrix, annot=True,
-                             cmap=sns.diverging_palette(20, 220, n=50),
+                             cmap=sns.diverging_palette(220, 20, n=50),
                              norm=normalize)  # cbar_pos=(0, .2, .03, .4)
         plt.title("Spearman correlation coefficients for logs of values {} epigenetic markers".format(args.cell_line))
         plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,
@@ -91,9 +91,9 @@ if __name__ == '__main__':
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(8, 8))
-            normalize = mpl.colors.Normalize(vmin=-1, vmax=1)
+            normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
             ax = sns.heatmap(corrMatrix, annot=True,
-                             cmap=sns.diverging_palette(20, 220, n=50),
+                             cmap=sns.diverging_palette(220, 20, n=50),
                              norm=normalize)  # cbar_pos=(0, .2, .03, .4)
         plt.title("Spearman correlation coefficients for {} epigenetic markers".format(args.cell_line))
         plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,

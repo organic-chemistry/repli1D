@@ -9,6 +9,20 @@ from tensorflow.keras.layers import (Activation, Add, Conv1D, Conv2D, Dense,
                                      Dropout, Flatten, Input, MaxPooling1D,
                                      MaxPooling2D)
 
+def mlp(X_train, targets):
+    """Fully Connected Neural Network, known as MLP(Multi-Layer Perceptons).
+    """
+    feature_number = X_train.shape[1]
+    output_number = targets.shape[1]
+    model = tf.keras.Sequential()
+    model.add(Dense((output_number+feature_number)/2+20,
+                     input_dim=feature_number,
+                     activation=tf.keras.layers.LeakyReLU(alpha=0.2),
+                     kernel_initializer="he_normal")) 
+    model.add(Dense(output_number, activation='linear'))
+    model.summary()
+    return model
+
 def jm_cnn_model(X_train, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
     """The model that Jean Michel has implemented, and trained.
