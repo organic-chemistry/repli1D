@@ -80,11 +80,16 @@ def generate_newp_no_corre(pos, proba, avail,actual_pos=[],cascade={},previous =
 
     #first call generate ordered list of origins
 
-    size = np.sum(proba != 0)
-    newp = list(np.random.choice(pos,size=min(size,avail),
-                                     replace=False,
-                                      p=proba/np.sum(proba)))
-
+    try:
+        mask = proba!=0
+        newp = list(np.random.choice(pos[mask],size=avail,
+                                         replace=False,
+                                          p=proba[mask]/np.sum(proba)))
+    except:
+        size = np.sum(proba != 0)
+        newp = list(np.random.choice(pos,size=size,
+                                         replace=False,
+                                          p=proba/np.sum(proba)))
 
 
     # Set the proba of initiation to 0
@@ -434,6 +439,7 @@ class Chrom:
                 for part in particules:
                     remove.append(part)
 
+        tr = np.arange(self.t, self.t+time)
         for p in self.actual_pos:
             #print(p[0], time)
 
@@ -441,7 +447,7 @@ class Chrom:
 
                 if self.constant_speed:
                     self.rfd[self.rc(p[0] - time):self.rc(p[0])] = -1
-                    self.mrt[self.rc(p[0] - time):self.rc(p[0])] = np.arange(self.t, self.t+time)[::-1]
+                    self.mrt[self.rc(p[0] - time):self.rc(p[0])] = tr[::-1]
 
                     proba[p[0] - time:p[0]]=0
                     p[0] -= time
@@ -454,7 +460,7 @@ class Chrom:
             else:
                 if self.constant_speed:
                     self.rfd[self.rc(p[0]):self.rc(p[0] + time)] = 1
-                    self.mrt[self.rc(p[0]):self.rc(p[0] + time)] = np.arange(self.t, self.t + time)
+                    self.mrt[self.rc(p[0]):self.rc(p[0] + time)] = tr
 
                     proba[p[0]:p[0] + time] = 0
                     p[0] += time
@@ -478,10 +484,11 @@ class Chrom:
         self.t  += time
 
         # CHekc termination:
+        """
         for ter in termination:
             if np.isnan(self.mrt[self.rc(ter)]):
                 self.check(show=True, msg="dt %f Termination not completed %.2f\n remve %s" % (time,ter,str(delete)))
-
+        """
 
         return termination,avail
 

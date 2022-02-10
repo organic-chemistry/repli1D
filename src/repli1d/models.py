@@ -38,6 +38,7 @@ def jm_cnn_model(X_train, targets, nfilters, kernel_length,
     #                                loss='mean_squared_logarithmic_error')
     ada = tf.keras.optimizers.Adadelta(
     learning_rate=1, rho=0.95, epsilon=1e-07, name="Adadelta")
+    #rms = tf.keras.optimizers.RMSprop()
     multi_layer_keras_model.compile(optimizer=ada,  # 'adam'
                                     loss=loss,
                                     metrics=[metrics.MSE])
