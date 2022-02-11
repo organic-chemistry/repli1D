@@ -423,14 +423,20 @@ def window_stack_single(a, stepsize=1, width=3):
 def reshape_for_batch(selected,step_size,window_size):
     return window_stack_single(selected,step_size,window_size).reshape(-1, window_size, selected.shape[-1])
 
-def compute_all_possible_batches(data_x,window_size,step_size,batch_size):
-
+def compute_all_possible_batches(data_x,window_size,step_size,batch_size,drop_remainder=True):
 
     tot_size=window_size + step_size * (batch_size-1)
     all_possible_batches = []
     for ch in range(len(data_x)):
         for pos in np.arange(0,len(data_x[ch])-tot_size+1,batch_size*step_size):
-            all_possible_batches.append([ch,int(pos)])
+            all_possible_batches.append([ch,int(pos),tot_size])
+        if not drop_remainder:
+            left = len(data_x[ch]) - (int(pos)+batch_size)
+            if left> 0 :
+                all_possible_batches.append([ch,int(pos)+batch_size,left])
+            if left < window_size:
+                raise
+
     return tot_size,all_possible_batches
 
 def split(data,mask_borders):
@@ -446,13 +452,11 @@ def split(data,mask_borders):
 def n_steps(x,step_size,window_size,batch_size):
     tot_size,all_possible_batches = compute_all_possible_batches(x,window_size,step_size,batch_size)
     return len(all_possible_batches)
-def generator(x,y,step_size,window_size,batch_size,random=True):
-
-
-
+def generator(x,y,window_size,step_size,batch_size,random=True,drop_remainder=True):
 
     # create the list of all possible batch:
-    tot_size,all_possible_batches = compute_all_possible_batches(x,window_size,step_size,batch_size)
+    tot_size,all_possible_batches = compute_all_possible_batches(x,window_size,step_size,batch_size,drop_remainder)
+    #print(all_possible_batches)
     while True:
         if random:
             perm = np.random.permutation(len(all_possible_batches))
@@ -460,12 +464,39 @@ def generator(x,y,step_size,window_size,batch_size,random=True):
             perm = np.arange(len(all_possible_batches))
         #print("Number of batches",len(all_possible_batches))
         for p in perm:
-            which,start=all_possible_batches[p]
-            yield reshape_for_batch(x[which][start:start+tot_size],step_size,window_size)[::, np.newaxis, ::, ::],\
-                  reshape_for_batch(y[which][start:start+tot_size],step_size,window_size)[:,window_size//2]
+            which,start,size_b=all_possible_batches[p]
+            yield reshape_for_batch(x[which][start:start+size_b],step_size,window_size)[::, np.newaxis, ::, ::],\
+                  reshape_for_batch(y[which][start:start+size_b],step_size,window_size)[:,window_size//2]
 
+#For tf but is really slow
+"""
+def compute_all_possible_sequences(lengths,window_size,step_size):
+    print(lengths,window_size,step_size)
+    tot_size=window_size
+    all_possible_sequences = []
+    shift=0
+    for length in lengths:
+        #print(lenght)
+        for pos in np.arange(0,length-tot_size+1,step_size):
+            all_possible_sequences.append(int(pos))
+        shift += length
+    return all_possible_sequences
 
+def generator_no_batch(data_x,data_y,all_possible_sequences ,window_size,step_size,random=True):
 
+    # create the list of all possible batch:
+    #while True:
+    tot_size=window_size
+    if random:
+        perm = np.random.permutation(len(all_possible_sequences))
+    else:
+        perm = np.arange(len(all_possible_sequences))
+    #print("Number of batches",len(all_possible_batches))
+    for p in perm:
+        start=all_possible_sequences[p]
+        yield data_x[start:start+tot_size][np.newaxis,...],\
+              data_y[start:start+tot_size][window_size//2]
+"""
 def train_test_split(chrom, ch_train, ch_test, notnan):
     print(list(ch_train), list(ch_test))
 
@@ -500,6 +531,7 @@ if __name__ == "__main__":
                                  ReduceLROnPlateau)
     from repli1d.models import jm_cnn_model as create_model
     from keras.models import  load_model
+    import tensorflow as tf
 
 
     parser = argparse.ArgumentParser()
@@ -646,10 +678,40 @@ if __name__ == "__main__":
                 x = split(df,mask_borders)
                 y = split(yinit,mask_borders)
                 assert(len(x)==(len(traint)+len(tests)+len(valt)))
-                vtrain = generator(x[2:], y[2:], 1, window,args.batch_size)
-                train_steps = n_steps(x[2:] , 1, window,args.batch_size)
-                vval = generator(x[1:2], y[1:2], 1, window,args.batch_size)
-                val_steps = n_steps(x[1:2], 1, window,args.batch_size)
+
+
+                vtrain = generator(x[2:], y[2:],  window,1,args.batch_size,random=True,drop_remainder=True)
+                train_steps = len(compute_all_possible_batches(x[2:],window,1,args.batch_size,drop_remainder=True)[1])
+                vval = generator(x[1:2], y[1:2], window,1,args.batch_size,random=True,drop_remainder=True)
+                val_steps = len(compute_all_possible_batches(x[1:2],window,1,args.batch_size,drop_remainder=True)[1])
+
+                """
+                print([len(xx) for xx in x[2:]])
+                all_possible_sequences = compute_all_possible_sequences([len(xx) for xx in x[2:]] , window,step_size=1)
+                vtrain =  tf.data.Dataset.from_generator(generator_no_batch,
+                                                        args=[np.concatenate(x[2:]),
+                                                              np.concatenate(y[2:]),
+                                                              all_possible_sequences,window,1,False],
+                                                        output_types=(tf.float32,tf.float32),
+                                                        output_shapes = ((1,window,x[0].shape[-1]),(y[0].shape[-1])))
+
+
+                vtrain = vtrain.batch(args.batch_size, drop_remainder=True)
+                train_steps = len(all_possible_sequences) // args.batch_size
+                print("Train steps",train_steps,len(all_possible_sequences))
+
+                #lengths= [len(xx) for xx in x[1:2]]
+                all_possible_sequences = compute_all_possible_sequences([len(xx) for xx in x[1:2]] , window,step_size=1)
+                vval =  tf.data.Dataset.from_generator(generator_no_batch,
+                                                        args=[x[1],y[1],
+                                                        all_possible_sequences,window,1,False],
+                                                        output_types=(tf.float32,tf.float32),
+                                                        output_shapes = ((1,window,x[0].shape[-1]),(y[0].shape[-1])))
+
+
+                vval = vval.batch(args.batch_size, drop_remainder=True)
+                val_steps = len(all_possible_sequences) // args.batch_size
+                """
 
                 for x,y in vtrain:
                     break
@@ -673,10 +735,11 @@ if __name__ == "__main__":
             weight = rootnn+"/%sweights.hdf5" % cell
 
 
-        model = load_model(weight)
+        multi_layer_keras_model = load_model(weight)
 
         multi_layer_keras_model.summary()
-        del X_train, y_train
+        if not args.generator:
+            del X_train, y_train
 
     if not args.restart and weight is not None:
         #load_model(args.weight)
@@ -846,12 +909,13 @@ if __name__ == "__main__":
             y = split(yinit,mask_borders)
             final = []
             for ch,yt in zip(x,y):
-                steps = n_steps([ch], 1, window,1)
-                pred = generator([ch],[yt], 1,window, 1,random=False)
+                pred = generator([ch],[yt],  window,1,args.batch_size,random=False,drop_remainder=False)
+                steps = len(compute_all_possible_batches([ch],window,1,args.batch_size,drop_remainder=False)[1])
 
 
                 res = multi_layer_keras_model.predict(pred,steps=steps)
                 final.append(res)
+                #print(len(res),len(ch))
             #del df, X, y
             #print(res.shape, "resshape", yinit.shape)
             for itarget, target in enumerate(args.targets):
