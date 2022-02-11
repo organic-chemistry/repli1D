@@ -416,6 +416,55 @@ def transform_seq(Xt, yt, mask_borders,stepsize=1, width=3, impair=True):
 
     return X, Y
 
+def window_stack_single(a, stepsize=1, width=3):
+    # print([[i,1+i-width or None,stepsize] for i in range(0,width)])
+    return np.hstack([a[i:1+i-width or None:stepsize] for i in range(0, width)])
+
+def reshape_for_batch(selected,step_size,window_size):
+    return window_stack_single(selected,step_size,window_size).reshape(-1, window_size, selected.shape[-1])
+
+def compute_all_possible_batches(data_x,window_size,step_size,batch_size):
+
+
+    tot_size=window_size + step_size * (batch_size-1)
+    all_possible_batches = []
+    for ch in range(len(data_x)):
+        for pos in np.arange(0,len(data_x[ch])-tot_size+1,batch_size*step_size):
+            all_possible_batches.append([ch,int(pos)])
+    return tot_size,all_possible_batches
+
+def split(data,mask_borders):
+    splited = []
+    for index, elem in enumerate(mask_borders):
+        if index != 0:
+            boundary = mask_borders[index-1]
+        else:
+            boundary = 0
+        splited.append(data[boundary: elem])
+    return splited
+
+def n_steps(x,step_size,window_size,batch_size):
+    tot_size,all_possible_batches = compute_all_possible_batches(x,window_size,step_size,batch_size)
+    return len(all_possible_batches)
+def generator(x,y,step_size,window_size,batch_size,random=True):
+
+
+
+
+    # create the list of all possible batch:
+    tot_size,all_possible_batches = compute_all_possible_batches(x,window_size,step_size,batch_size)
+    while True:
+        if random:
+            perm = np.random.permutation(len(all_possible_batches))
+        else:
+            perm = np.arange(len(all_possible_batches))
+        #print("Number of batches",len(all_possible_batches))
+        for p in perm:
+            which,start=all_possible_batches[p]
+            yield reshape_for_batch(x[which][start:start+tot_size],step_size,window_size)[::, np.newaxis, ::, ::],\
+                  reshape_for_batch(y[which][start:start+tot_size],step_size,window_size)[:,window_size//2]
+
+
 
 def train_test_split(chrom, ch_train, ch_test, notnan):
     print(list(ch_train), list(ch_test))
@@ -489,6 +538,7 @@ if __name__ == "__main__":
     parser.add_argument('--datafile', action="store_true")
     parser.add_argument('--add_noise', action="store_true")
     parser.add_argument('--filter_anomaly', action="store_true")
+    parser.add_argument('--generator', action="store_true")
 
 
     args = parser.parse_args()
@@ -580,28 +630,41 @@ if __name__ == "__main__":
             train, val = train_test_split(XC, traint, valt, notnan)
             X_train_us, X_val_us, y_train_us, y_val_us = df[train], df[val], yinit[train], yinit[val]
 
-            vtrain = transform_seq(X_train_us, y_train_us, mask_borders, 1, window)
-            vval = transform_seq(X_val_us, y_val_us, mask_borders, 1, window)
-            del X_train_us, X_val_us, y_train_us, y_val_us
-            if X_train == []:
-                X_train, y_train = vtrain
-                X_val, y_val = vval
+            if not args.generator:
+                vtrain = transform_seq(X_train_us, y_train_us, mask_borders, 1, window)
+                vval = transform_seq(X_val_us, y_val_us, mask_borders, 1, window)
+                del X_train_us, X_val_us, y_train_us, y_val_us
+                if X_train == []:
+                    X_train, y_train = vtrain
+                    X_val, y_val = vval
+                else:
+                    X_train = np.concatenate([X_train, vtrain[0]])
+                    y_train = np.concatenate([y_train, vtrain[1]])
+                    X_val = np.concatenate([X_val, vval[0]])
+                    y_val = np.concatenate([y_val, vval[1]])
             else:
-                X_train = np.concatenate([X_train, vtrain[0]])
-                y_train = np.concatenate([y_train, vtrain[1]])
-                X_val = np.concatenate([X_val, vval[0]])
-                y_val = np.concatenate([y_val, vval[1]])
+                x = split(df,mask_borders)
+                y = split(yinit,mask_borders)
+                assert(len(x)==(len(traint)+len(tests)+len(valt)))
+                vtrain = generator(x[2:], y[2:], 1, window,args.batch_size)
+                train_steps = n_steps(x[2:] , 1, window,args.batch_size)
+                vval = generator(x[1:2], y[1:2], 1, window,args.batch_size)
+                val_steps = n_steps(x[1:2], 1, window,args.batch_size)
 
-        X_train, y_train = unison_shuffled_copies(X_train, y_train)
+                for x,y in vtrain:
+                    break
+                print("Shapes",x.shape,y.shape)
+        if not args.generator:
+            X_train, y_train = unison_shuffled_copies(X_train, y_train)
 
-        n = X_train.shape[0] * X_train.shape[2]
-        if n > 1e9:
-            nmax = int(0.5e9//X_train.shape[2])
-            print(nmax)
-            X_train = X_train[:nmax]
-            y_train = y_train[:nmax]
+            n = X_train.shape[0] * X_train.shape[2]
+            if n > 1e9:
+                nmax = int(0.5e9//X_train.shape[2])
+                print(nmax)
+                X_train = X_train[:nmax]
+                y_train = y_train[:nmax]
 
-        print("Shape", X_train.shape, y_train.shape)
+            print("Shape", X_train.shape, y_train.shape)
 
     weight=None
     if (args.weight is not None) or os.path.exists(rootnn+"/%sweights.hdf5" % cell):
@@ -620,9 +683,13 @@ if __name__ == "__main__":
         pass
 
     else:
+        if not args.generator:
+            X_train_shape=X_train.shape
+        else:
+            X_train_shape=(None,1,window,X_train_us.shape[-1])
         if not args.imp:
             multi_layer_keras_model = create_model(
-                X_train, targets=args.targets, nfilters=args.nfilters,
+                X_train_shape, targets=args.targets, nfilters=args.nfilters,
                 kernel_length=args.kernel_length, loss=args.loss)
         else:
             multi_layer_keras_model = create_model_imp(
@@ -632,13 +699,6 @@ if __name__ == "__main__":
         if args.restart:
             multi_layer_keras_model = load_model(args.weight)
 
-        """
-        if (len(args.targets) == 1) and (args.targets[0] == "OKSeq"):
-
-            selpercents = [1.0]
-        else:
-            selpercents = [0.1, 1.0, 5.0, "all"]
-        """
 
         totenr = args.enrichment + ["all"]
         if args.noenrichment:
@@ -646,28 +706,29 @@ if __name__ == "__main__":
 
         print(totenr)
         for selp in totenr:
-
-            print(sum(y_train == 0), sum(y_train != 0))
-            if type(selp) == float:
-                sel = y_train[::, 0] != 0
-                th = np.percentile(y_train[::, 0], 100-selp)
-                print("sepp,th", selp, th)
-                sel = y_train[::, 0] > th
-                # sel = y_train[::, 0] > 0.2
-                """
-                if sum(sel)/len(sel) > selp:
-                    th = np.percentile(sel,100-100*selp)
-                    print(th)
+            if not args.generator:
+                print(sum(y_train == 0), sum(y_train != 0))
+                if type(selp) == float:
+                    sel = y_train[::, 0] != 0
+                    th = np.percentile(y_train[::, 0], 100-selp)
+                    print("sepp,th", selp, th)
                     sel = y_train[::, 0] > th
-                """
-                print("top %i , Total %i, selected %i" % (sum(sel), len(sel), int(0.01*selp*len(sel))))
-                sel[np.random.randint(0, len(sel-1), int(0.01*selp*len(sel)))] = True
-                print("Chekc", np.sum(sel))
-            else:
+                    # sel = y_train[::, 0] > 0.2
+                    """
+                    if sum(sel)/len(sel) > selp:
+                        th = np.percentile(sel,100-100*selp)
+                        print(th)
+                        sel = y_train[::, 0] > th
+                    """
+                    print("top %i , Total %i, selected %i" % (sum(sel), len(sel), int(0.01*selp*len(sel))))
+                    sel[np.random.randint(0, len(sel-1), int(0.01*selp*len(sel)))] = True
+                    print("Chekc", np.sum(sel))
+                else:
 
-                sel = np.ones_like(y_train[::, 0], dtype=np.bool)
-            print(np.sum(sel), sel.shape)
-            print(X_train.shape, X_train[sel].shape)
+                    sel = np.ones_like(y_train[::, 0], dtype=np.bool)
+                print(np.sum(sel), sel.shape)
+                print(X_train.shape, X_train[sel].shape)
+
             cp = [EarlyStopping(patience=3)]
             if selp == "all" and False:
                 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
@@ -678,27 +739,39 @@ if __name__ == "__main__":
                       ReduceLROnPlateau(monitor='val_loss', factor=0.2,
                                         patience=3, min_lr=0.0001)]
 
-            if args.datafile:
+            if not args.generator:
                 validation_data = (X_val, y_val)
                 validation_split = 0.
+                history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
+                                                                   y=y_train[sel],
+                                                                   batch_size=args.batch_size,
+                                                                   epochs=args.max_epoch,
+                                                                   verbose=1,
+                                                                   callbacks=cp+[History(),
+                                                                                 ModelCheckpoint(save_best_only=True,
+                                                                                                 filepath=rootnn+"/%sweights.{epoch:02d}-{val_loss:.4f}.hdf5" % cell,
+                                                                                                 verbose=1)],
+                                                                   validation_data=validation_data,
+                                                                   validation_split=validation_split)
             else:
-                validation_data = (X_val, y_val)
-                validation_split = 0.
-            history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
-                                                               y=y_train[sel],
-                                                               batch_size=args.batch_size,
-                                                               epochs=args.max_epoch,
-                                                               verbose=1,
-                                                               callbacks=cp+[History(),
-                                                                             ModelCheckpoint(save_best_only=True,
-                                                                                             filepath=rootnn+"/%sweights.{epoch:02d}-{val_loss:.4f}.hdf5" % cell,
-                                                                                             verbose=1)],
-                                                               validation_data=validation_data,
-                                                               validation_split=validation_split)
+                history_multi_filter = multi_layer_keras_model.fit_generator(vtrain,
+                                                                            workers=4,
+                                                                            use_multiprocessing=True,
+                                                                            steps_per_epoch=train_steps,
+                                                                            epochs=args.max_epoch,
+                                                                               verbose=1,
+                                                                               callbacks=cp+[History(),
+                                                                                             ModelCheckpoint(save_best_only=True,
+                                                                                                             filepath=rootnn+"/%sweights.{epoch:02d}-{val_loss:.4f}.hdf5" % cell,
+                                                                                                             verbose=1)],
+                                                                   validation_data=vval,
+                                                                   validation_steps=val_steps)
+
 
             multi_layer_keras_model.save(rootnn+"/%sweights.hdf5" % cell)
             print("Saving on", rootnn+"/%sweights.hdf5" % cell)
-        del X_train, y_train
+        if not args.generator:
+            del X_train, y_train
     ###################################
     # predict
     print("Predict")
@@ -737,7 +810,9 @@ if __name__ == "__main__":
                 wig=wig, smm=args.sm, augment=args.augment,
                 filter_anomaly=args.filter_anomaly)
             df, yinit, notnan, mask_borders = temp_dict.values()
-            X, y = transform_seq(df, yinit, 1, window)
+            vtrain = generator(X_train_us, y_train_us, mask_borders, 1, window,args.batch_size)
+            train_steps = n_steps(X_train_us, mask_borders, 1, window,args.batch_size)
+            vtrain = generator(x[2:], y[2:], 1, window,args.batch_size)
             print(X.shape)
             res = multi_layer_keras_model.predict(X)
             del df, X, y
@@ -767,14 +842,20 @@ if __name__ == "__main__":
                 smm=args.sm, augment=args.augment,
                 filter_anomaly=args.filter_anomaly)
             df, yinit, notnan, mask_borders = temp_dict.values()
-            X, y = transform_seq(df, yinit,[len(df)],1, window)
-            print(X.shape)
-            res = multi_layer_keras_model.predict(X)
-            del df, X, y
-            print(res.shape, "resshape", yinit.shape)
+            x = split(df,mask_borders)
+            y = split(yinit,mask_borders)
+            final = []
+            for ch,yt in zip(x,y):
+                steps = n_steps([ch], 1, window,1)
+                pred = generator([ch],[yt], 1,window, 1,random=False)
 
+
+                res = multi_layer_keras_model.predict(pred,steps=steps)
+                final.append(res)
+            #del df, X, y
+            #print(res.shape, "resshape", yinit.shape)
             for itarget, target in enumerate(args.targets):
-                XC["signalValue"] = repad1d(res[::, itarget], window)
+                XC["signalValue"] = np.concatenate([repad1d(res[::, itarget], window) for res in final])
                 if target == "OKSeq":
                     XC["signalValue"] = XC["signalValue"] * 2-1
             # XC.to_csv("nn_hela_fk.csv",index=False,sep="\t")

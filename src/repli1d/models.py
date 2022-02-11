@@ -9,7 +9,7 @@ from tensorflow.keras.layers import (Activation, Add, Conv1D, Conv2D, Dense,
                                      Dropout, Flatten, Input, MaxPooling1D,
                                      MaxPooling2D)
 
-def jm_cnn_model(X_train, targets, nfilters, kernel_length,
+def jm_cnn_model(X_train_shape, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
     """The model that Jean Michel has implemented, and trained.
     """
@@ -18,7 +18,7 @@ def jm_cnn_model(X_train, targets, nfilters, kernel_length,
     K.set_image_data_format('channels_last')
 
     multi_layer_keras_model = tf.keras.Sequential()
-    multi_layer_keras_model.add(Input(X_train.shape[1:]))
+    multi_layer_keras_model.add(Input(X_train_shape[1:]))
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), activation='relu'))
     multi_layer_keras_model.add(Dropout(dropout))
@@ -45,7 +45,7 @@ def jm_cnn_model(X_train, targets, nfilters, kernel_length,
     multi_layer_keras_model.summary()
     return multi_layer_keras_model
 
-def jm_cnn_model_beta(X_train, targets, nfilters, kernel_length,
+def jm_cnn_model_beta(X_train_shape, targets, nfilters, kernel_length,
                  loss="mse"):
     """Some slight modifications on the model that Jean Michel has implemented,
     and trained. this nn can be a costumized to compare the effect of optimizers,
@@ -55,7 +55,7 @@ def jm_cnn_model_beta(X_train, targets, nfilters, kernel_length,
     dropout = 0.01
     K.set_image_data_format('channels_last')
     multi_layer_keras_model = tf.keras.Sequential()
-    multi_layer_keras_model.add(Input(X_train.shape[1:]))
+    multi_layer_keras_model.add(Input(X_train_shape))
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
         1, kernel_length), activation='relu'))
     multi_layer_keras_model.add(Conv2D(filters=nfilters, kernel_size=(
