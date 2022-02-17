@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import dcor
 
 if __name__ == '__main__':
 
@@ -32,11 +33,11 @@ if __name__ == '__main__':
         df.loc[~masks['signal'].astype(bool)] = np.nan
         df = df.dropna()
         print(df)
-        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         for i in args.marks + args.output:
             # df.loc[df[i] == 0, i] = np.min(df[i][(df[i] != 0)])
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
             df[i] = np.log10(df[i])
+        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(10, 8))
             normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
@@ -59,11 +60,11 @@ if __name__ == '__main__':
         df.loc[~masks['signal'].astype(bool)] = np.nan
         df = df.dropna()
         print(df)
-        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         for i in args.marks + args.output:
             # df.loc[df[i] == 0, i] = np.min(df[i][(df[i] != 0)])
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
             df[i] = np.log10(df[i])
+        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(8, 8))
             normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
@@ -85,10 +86,10 @@ if __name__ == '__main__':
         df.loc[~masks['signal'].astype(bool)] = np.nan
         df = df.dropna()
         print(df)
-        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         for i in args.marks + args.output:
             # df.loc[df[i] == 0, i] = np.min(df[i][(df[i] != 0)])
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+        corrMatrix = df[args.marks + args.output].corr(method='spearman')
         with sns.axes_style("white"):
             f, ax = plt.subplots(figsize=(8, 8))
             normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
@@ -102,3 +103,80 @@ if __name__ == '__main__':
                                           i, args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
+
+    if args.correlation == 'pearson log with clustering':
+        df = pd.read_csv(args.listfile)
+        masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+        print('Number of NANs is {}'.format(masks['signal'].sum()))
+        df.loc[~masks['signal'].astype(bool)] = np.nan
+        df = df.dropna()
+        print(df)
+        for i in args.marks + args.output:
+            # df.loc[df[i] == 0, i] = np.min(df[i][(df[i] != 0)])
+            df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+            df[i] = np.log10(df[i])
+        corrMatrix = df[args.marks + args.output].corr(method='pearson')
+        with sns.axes_style("white"):
+            f, ax = plt.subplots(figsize=(10, 8))
+            normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
+            ax = sns.clustermap(corrMatrix, annot=True, row_cluster=True,
+                                col_cluster=True, metric='correlation',
+                                cmap=sns.diverging_palette(220, 20, n=50),
+                                norm=normalize)  # cbar_pos=(0, .2, .03, .4)
+        plt.title("Pearson correlation coefficients for logs of values {} epigenetic markers".format(args.cell_line), x=10, y=1)
+        plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,
+                                          args.correlation,
+                                          args.cell_line,
+                                          i, args.image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+
+    if args.correlation == 'distance log with clustering':
+        df = pd.read_csv(args.listfile)
+        masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+        print('Number of NANs is {}'.format(masks['signal'].sum()))
+        df.loc[~masks['signal'].astype(bool)] = np.nan
+        df = df.dropna()
+        print(df)
+        for i in args.marks + args.output:
+            df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+            df[i] = np.log10(df[i])
+        size = len(args.marks + args.output)    
+        res = np.zeros([size, size])
+        r = -1
+        for index, elem in enumerate(args.marks + args.output):
+            x = df[elem].to_numpy(copy=True)
+            for inter_index, inter_elem in enumerate(args.marks + args.output):
+                y = df[inter_elem].to_numpy(copy=True)
+                res[index, inter_index] = dcor.distance_correlation(x, y)
+        print(res)
+        corrMatrix = pd.DataFrame(res,index=args.marks + args.output,
+            columns=args.marks + args.output)
+        # corrMatrix = dcor.rowwise(dcor.distance_correlation,
+        #                           df[args.marks + args.output].to_numpy(copy=True),
+        #                           df[args.marks + args.output].to_numpy(copy=True))
+        with sns.axes_style("white"):
+            f, ax = plt.subplots(figsize=(10, 8))
+            normalize = mpl.colors.Normalize(vmin=-0.2, vmax=1)
+            ax = sns.clustermap(corrMatrix, annot=True, row_cluster=True,
+                                col_cluster=True, metric='correlation',
+                                cmap=sns.diverging_palette(220, 20, n=50),
+                                norm=normalize)  # cbar_pos=(0, .2, .03, .4)
+        plt.title("Distance correlation coefficients for logs of values {} epigenetic markers".format(args.cell_line), x=10, y=1)
+        plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,
+                                          args.correlation,
+                                          args.cell_line,
+                                          i, args.image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+ 
+    # mask = np.zeros_like(corr)
+    # mask[np.triu_indices_from(mask)] = True
+    # g = sns.clustermap(corr, mask=mask, vmax=.3, figsize=(0.1,0.1))
+    # mask = mask[np.argsort(g.dendrogram_row.reordered_ind),:]
+    # mask = mask[:,np.argsort(g.dendrogram_col.reordered_ind)]
+    # plotty = sns.clustermap(corr,figsize=(40,40),mask=mask, cmap='jet',
+    #                         xticklabels=sim_mat.columns,
+    #                         yticklabels=sim_mat.columns)
+    # plotty.ax_col_dendrogram.set_visible(False)
+    # plotty.savefig('output.png')

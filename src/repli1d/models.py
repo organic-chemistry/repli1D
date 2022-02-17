@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 from keras import backend as K
 from keras import metrics
 from keras.models import Model, load_model
@@ -15,10 +16,12 @@ def mlp(X_train, targets):
     feature_number = X_train.shape[1]
     output_number = targets.shape[1]
     model = tf.keras.Sequential()
-    model.add(Dense((output_number+feature_number)/2+20,
-                     input_dim=feature_number,
-                     activation=tf.keras.layers.LeakyReLU(alpha=0.2),
-                     kernel_initializer="he_normal")) 
+    model.add(Dense((output_number+feature_number)/2+40,
+                    input_dim=feature_number,
+                    activation='relu',
+                    kernel_initializer="he_normal"))
+    #  activation=tf.keras.layers.LeakyReLU(alpha=0.2)
+
     model.add(Dense(output_number, activation='linear'))
     model.summary()
     return model
