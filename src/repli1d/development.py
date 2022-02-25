@@ -50,6 +50,11 @@ if __name__ == '__main__':
         print(y_train.shape)
         X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
         y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
+        X_train, y_train = shuffle(X_train, y_train)
+        X_train = tf.convert_to_tensor(X_train, np.float32)
+        y_train = tf.convert_to_tensor(y_train, np.float32)
+        X_test = tf.convert_to_tensor(X_test, np.float32)
+        y_test = tf.convert_to_tensor(y_test, np.float32)
         # X_val = df.loc[df['chrom'] == 'chr2', args.marks].to_numpy()
         # y_val = df.loc[df['chrom'] == 'chr2', args.output].to_numpy()
         model = mlp(X_train, y_train)
@@ -68,7 +73,6 @@ if __name__ == '__main__':
                       metrics=['mse', 'mae',
                                tf.keras.metrics.RootMeanSquaredError()])
         callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
-        X_train, y_train = shuffle(X_train, y_train)
         history = model.fit(X_train, y_train, epochs=2000,
                             verbose=1, validation_split=0.07,
                             callbacks=[callback, mcp_save],
@@ -157,3 +161,54 @@ if __name__ == '__main__':
         with open('{}{}history.csv'.format(args.output_dir,
                   args.preprocessing), mode='w') as f:
             hist.to_csv(f)
+
+    if args.preprocessing == 'min_max normalization':
+        
+        # X_train = df.loc[(df['chrom'] != 'chr1') & (df['chrom'] != 'chr2'),
+        #                  args.marks].to_numpy()
+        # y_train = df.loc[(df['chrom'] != 'chr1') & (df['chrom'] != 'chr2'),
+        #                  args.output].to_numpy()
+        X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
+        print(X_train.shape)
+        y_train = df.loc[df['chrom'] != 'chr1', args.output].to_numpy()
+        print(y_train.shape)
+        X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
+        y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
+        # X_val = df.loc[df['chrom'] == 'chr2', args.marks].to_numpy()
+        # y_val = df.loc[df['chrom'] == 'chr2', args.output].to_numpy()
+        model = mlp(X_train, y_train)
+        tf.keras.utils.plot_model(model,
+                                  to_file='{}{}FCNN_architecture.png'.format(
+                                           args.output_dir,
+                                           args.preprocessing),
+                                  show_shapes=True)
+        checkpoint_filepath = r'{}{}FCNN_K562_marks.mdl_wts.hdf5'.format(
+                                args.output_dir, args.preprocessing)
+        mcp_save = tf.keras.callbacks.ModelCheckpoint(
+                   filepath=checkpoint_filepath,
+                   save_best_only=True,
+                   monitor='val_loss', mode='min')
+        model.compile(loss='mse', optimizer='adam',
+                      metrics=['mse', 'mae',
+                               tf.keras.metrics.RootMeanSquaredError()])
+        callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+        X_train, y_train = shuffle(X_train, y_train)
+        history = model.fit(X_train, y_train, epochs=2000,
+                            verbose=1, validation_split=0.07,
+                            callbacks=[callback, mcp_save],
+                            batch_size=128)  # validation_data=(X_val, y_val),
+        plt.plot(history.history['loss'], c='red')
+        plt.plot(history.history['val_loss'], c='blue')
+        plt.scatter(np.argmin(history.history['val_loss']),
+                    np.min(history.history['val_loss']), facecolors='none',
+                    edgecolors='chocolate', s=50)
+        plt.title('Fully Connected Neural Network Loss')
+        plt.ylabel('Loss (Mean Squared Error)')
+        plt.xlabel('Epoch')
+        plt.legend(['training', 'validation'], loc='upper right')
+        plt.savefig('{}FCNN_Loss.png'.format(args.output_dir),
+                    dpi=300, bbox_inches='tight')
+        hist = pd.DataFrame(history.history)
+        with open('{}{}history.csv'.format(args.output_dir,
+                  args.preprocessing), mode='w') as f:
+            hist.to_csv(f)   
