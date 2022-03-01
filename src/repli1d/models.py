@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 from keras import backend as K
 from keras import metrics
 from keras.models import Model, load_model
@@ -8,6 +9,22 @@ from tensorflow.keras.callbacks import (EarlyStopping, History,
 from tensorflow.keras.layers import (Activation, Add, Conv1D, Conv2D, Dense,
                                      Dropout, Flatten, Input, MaxPooling1D,
                                      MaxPooling2D)
+
+def mlp(X_train, targets):
+    """Fully Connected Neural Network, known as MLP(Multi-Layer Perceptons).
+    """
+    feature_number = X_train.shape[1]
+    output_number = targets.shape[1]
+    model = tf.keras.Sequential()
+    model.add(Dense((output_number+feature_number)/2+40,
+                    input_dim=feature_number,
+                    activation='relu',
+                    kernel_initializer="he_normal"))
+    #  activation=tf.keras.layers.LeakyReLU(alpha=0.2)
+
+    model.add(Dense(output_number, activation='linear'))
+    model.summary()
+    return model
 
 def jm_cnn_model(X_train, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
