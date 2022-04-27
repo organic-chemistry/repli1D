@@ -4,7 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
+from sklearn.metrics import make_scorer
+from sklearn.tree import plot_tree
 
 from repli1d.models import mlp
 
@@ -35,7 +40,136 @@ if __name__ == '__main__':
     df.loc[~masks['signal'].astype(bool)] = np.nan
     df = df.dropna()
     print(df)
-    
+
+    if args.preprocessing == 'log RF Gridsearch':
+        for i in args.marks + args.output:
+            df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+            df[i] = np.log10(df[i])
+        X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
+        print(X_train.shape)
+        y_train = df.loc[df['chrom'] != 'chr1', args.output].to_numpy()
+        print(y_train.shape)
+        X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
+        y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
+        X_train, y_train = shuffle(X_train, y_train)
+        regr = RandomForestRegressor(n_jobs=-1, random_state=0)
+        params = {
+            'max_depth': [20, 30, 50, 100],
+            'min_samples_leaf': [ 20, 50, 80],
+            'n_estimators': [200, 300, 400, 500]
+        }
+        mse = make_scorer(mean_squared_error, greater_is_better=False)
+        grid_search = GridSearchCV(estimator=regr,
+                                   param_grid=params,
+                                   cv=4,
+                                   n_jobs=-1, verbose=1,
+                                   scoring=mse)
+        grid_search.fit(X_train, y_train.ravel())
+        print(grid_search.best_score_)
+        # print(mean_squared_error(regr.predict(X_train), y_train))
+        print(grid_search.best_estimator_)
+
+    if args.preprocessing == 'log RF':
+        for i in args.marks + args.output:
+            df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+            df[i] = np.log10(df[i])
+        X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
+        print(X_train.shape)
+        y_train = df.loc[df['chrom'] != 'chr1', args.output].to_numpy()
+        print(y_train.shape)
+        X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
+        y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
+        X_train, y_train = shuffle(X_train, y_train)
+        regr = RandomForestRegressor(max_depth=20, min_samples_leaf=20,
+            n_estimators=200, n_jobs=-1, random_state=0)
+        regr.fit(X_train, y_train.ravel())
+        predicted = regr.predict(X_train)
+        print(mean_squared_error(10**predicted, 10**y_train))
+        print(mean_squared_error(10**regr.predict(X_test), 10**y_test))
+        print(mean_squared_error(predicted, y_train))
+        print(mean_squared_error(regr.predict(X_test), y_test))
+        print(regr.feature_importances_)
+        p1 = max(max(predicted), max(y_train))
+        p2 = min(min(predicted), min(y_train))
+        plt.plot([p1, p2], [p1, p2], '-', color='orange')
+        plt.scatter(y_train.ravel(), predicted, s=0.1, alpha=0.05)
+        plt.title('Log of predicted values with respect to the log of real values')
+        plt.ylabel('Predicted vlaues')
+        plt.xlabel('Real values')
+        plt.axis('square')
+        plt.savefig('{}distribution_performance.png'.format(args.output_dir),
+                    dpi=300, bbox_inches='tight')
+        plt.close()
+        plt.figure(figsize=(10, 10))
+        plt.plot([p1, p2], [p1, p2], 'w-')
+        plt.hist2d(y_train.ravel(), predicted,
+                   bins=[np.histogram_bin_edges(y_train, bins='auto'),
+                   np.histogram_bin_edges(predicted,
+                   bins='auto')],
+                   cmap=plt.cm.nipy_spectral)
+        plt.colorbar()
+        plt.xlabel('Real values')
+        plt.ylabel('Predicted values')
+        plt.title('Log of predicted values with respect to the log of ' +
+            'real values for {}'.format(args.cell_line))
+        plt.savefig('{}{}.{}'.format(args.output_dir,
+                                          args.cell_line,
+                                          args.image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+        plt.plot(y_train[0:50], '-o')
+        plt.plot(predicted[0:50], '-o')
+        plt.legend(['Real', 'Predicted'], loc='upper right')
+        plt.title('comparison of real values and predicted values by RF')
+        plt.savefig('{}{}comaprison_r_p.{}'.format(args.output_dir,
+                                          args.cell_line,
+                                          args.image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+    if args.preprocessing == 'raw RF':
+        X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
+        print(X_train.shape)
+        y_train = df.loc[df['chrom'] != 'chr1', args.output].to_numpy()
+        print(y_train.shape)
+        X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
+        y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
+        X_train, y_train = shuffle(X_train, y_train)
+        regr = RandomForestRegressor(max_depth=20, min_samples_leaf=20,
+            n_estimators=200, n_jobs=-1, random_state=0)
+        regr.fit(X_train, y_train.ravel())
+        predicted = regr.predict(X_train)
+        print(mean_squared_error(predicted, y_train))
+        print(mean_squared_error(regr.predict(X_test), y_test))
+        print(regr.feature_importances_)
+        p1 = max(max(predicted), max(y_train))
+        p2 = min(min(predicted), min(y_train))
+        plt.plot([p1, p2], [p1, p2], '-', color='orange')
+        plt.scatter(y_train.ravel(), predicted, s=0.1, alpha=0.05)
+        plt.title('predicted values with respect to the real values')
+        plt.ylabel('Predicted vlaues')
+        plt.xlabel('Real values')
+        plt.axis('square')
+        plt.savefig('{}distribution_performance.png'.format(args.output_dir),
+                    dpi=300, bbox_inches='tight')
+        plt.close()
+        plt.figure(figsize=(10, 10))
+        plt.plot([p1, p2], [p1, p2], 'w-')
+        plt.hist2d(y_train.ravel(), predicted,
+                   bins=[np.histogram_bin_edges(y_train, bins='auto'),
+                   np.histogram_bin_edges(predicted,
+                   bins='auto')],
+                   cmap=plt.cm.nipy_spectral)
+        plt.colorbar()
+        plt.xlabel('Real values')
+        plt.ylabel('Predicted values')
+        plt.title('predicted values with respect to the ' +
+            'real values for {}'.format(args.cell_line))
+        plt.savefig('{}{}.{}'.format(args.output_dir,
+                                          args.cell_line,
+                                          args.image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+
     if args.preprocessing == 'log':
         for i in args.marks + args.output:
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
@@ -60,15 +194,15 @@ if __name__ == '__main__':
         model = mlp(X_train, y_train)
         tf.keras.utils.plot_model(model,
                                   to_file='{}{}FCNN_architecture.png'.format(
-                                           args.output_dir,
-                                           args.preprocessing),
+                                      args.output_dir,
+                                      args.preprocessing),
                                   show_shapes=True)
         checkpoint_filepath = r'{}{}FCNN_K562_marks.mdl_wts.hdf5'.format(
-                                args.output_dir, args.preprocessing)
+            args.output_dir, args.preprocessing)
         mcp_save = tf.keras.callbacks.ModelCheckpoint(
-                   filepath=checkpoint_filepath,
-                   save_best_only=True,
-                   monitor='val_loss', mode='min')
+            filepath=checkpoint_filepath,
+            save_best_only=True,
+            monitor='val_loss', mode='min')
         model.compile(loss='mse', optimizer='adam',
                       metrics=['mse', 'mae',
                                tf.keras.metrics.RootMeanSquaredError()])
@@ -90,7 +224,7 @@ if __name__ == '__main__':
                     dpi=300, bbox_inches='tight')
         hist = pd.DataFrame(history.history)
         with open('{}{}history.csv'.format(args.output_dir,
-                  args.preprocessing), mode='w') as f:
+                                           args.preprocessing), mode='w') as f:
             hist.to_csv(f)
 
     if args.preprocessing == 'log multi-GPU':
@@ -129,14 +263,14 @@ if __name__ == '__main__':
             model = mlp(X_train, y_train)
             tf.keras.utils.plot_model(model,
                                       to_file='{}{}FCNN_architecture.png'.format(
-                                      args.output_dir, args.preprocessing),
+                                          args.output_dir, args.preprocessing),
                                       show_shapes=True)
             checkpoint_filepath = r'{}{}FCNN_K562_marks.mdl_wts.hdf5'.format(
-                                    args.output_dir, args.preprocessing)
+                args.output_dir, args.preprocessing)
             mcp_save = tf.keras.callbacks.ModelCheckpoint(
-                    filepath=checkpoint_filepath,
-                    save_best_only=True,
-                    monitor='val_loss', mode='min')
+                filepath=checkpoint_filepath,
+                save_best_only=True,
+                monitor='val_loss', mode='min')
             model.compile(loss='mse', optimizer='adam',
                           metrics=['mse', 'mae',
                                    tf.keras.metrics.RootMeanSquaredError()])
@@ -159,11 +293,11 @@ if __name__ == '__main__':
                     dpi=300, bbox_inches='tight')
         hist = pd.DataFrame(history.history)
         with open('{}{}history.csv'.format(args.output_dir,
-                  args.preprocessing), mode='w') as f:
+                                           args.preprocessing), mode='w') as f:
             hist.to_csv(f)
 
     if args.preprocessing == 'min_max normalization':
-        
+
         # X_train = df.loc[(df['chrom'] != 'chr1') & (df['chrom'] != 'chr2'),
         #                  args.marks].to_numpy()
         # y_train = df.loc[(df['chrom'] != 'chr1') & (df['chrom'] != 'chr2'),
@@ -179,15 +313,15 @@ if __name__ == '__main__':
         model = mlp(X_train, y_train)
         tf.keras.utils.plot_model(model,
                                   to_file='{}{}FCNN_architecture.png'.format(
-                                           args.output_dir,
-                                           args.preprocessing),
+                                      args.output_dir,
+                                      args.preprocessing),
                                   show_shapes=True)
         checkpoint_filepath = r'{}{}FCNN_K562_marks.mdl_wts.hdf5'.format(
-                                args.output_dir, args.preprocessing)
+            args.output_dir, args.preprocessing)
         mcp_save = tf.keras.callbacks.ModelCheckpoint(
-                   filepath=checkpoint_filepath,
-                   save_best_only=True,
-                   monitor='val_loss', mode='min')
+            filepath=checkpoint_filepath,
+            save_best_only=True,
+            monitor='val_loss', mode='min')
         model.compile(loss='mse', optimizer='adam',
                       metrics=['mse', 'mae',
                                tf.keras.metrics.RootMeanSquaredError()])
@@ -210,5 +344,5 @@ if __name__ == '__main__':
                     dpi=300, bbox_inches='tight')
         hist = pd.DataFrame(history.history)
         with open('{}{}history.csv'.format(args.output_dir,
-                  args.preprocessing), mode='w') as f:
-            hist.to_csv(f)   
+                                           args.preprocessing), mode='w') as f:
+            hist.to_csv(f)
