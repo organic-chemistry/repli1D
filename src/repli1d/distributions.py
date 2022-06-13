@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, default=['initiation'])
     parser.add_argument('--output_dir', type=str, 
                         default='data_representation/')
-    parser.add_argument('--image_format', type=str, default='eps')
+    parser.add_argument('--image_format', type=str, default='png')
 
     args = parser.parse_args()
 
@@ -94,12 +94,13 @@ if __name__ == '__main__':
         df = df.dropna()
         print(df)
         for a in args.output:
-            # df[a] = df[a] + np.min(df[a][(df[a] != 0)])
-            # df[a] = np.log10(df[a])
+            df[a] = df[a] + np.min(df[a][(df[a] != 0)])
+            df[a] = np.log10(df[a])
             for i in args.marks:
-                # df[i] = df[i] + np.min(df[i][(df[i] != 0)])
-                # df[i] = np.log10(df[i])
-                plt.figure(figsize=(10, 10))
+                df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+                df[i] = np.log10(df[i])
+                # plt.figure(figsize=(14, 8))
+                # sns.set(font_scale=1)
                 sns.jointplot(x=df[i], y=df[a], kind='hex',
                               marginal_ticks=True, cmap=plt.cm.nipy_spectral,
                               marginal_kws=dict(binwidth=0.008, fill=True))
@@ -113,7 +114,7 @@ if __name__ == '__main__':
                                                   args.cell_line,
                                                   i, args.image_format),
                             dpi=300, bbox_inches='tight',
-                            format='eps')
+                            format='png')
                 plt.close()
 
     if args.distribution == 'raw':

@@ -138,7 +138,7 @@ if __name__ == '__main__':
         print('Convergence Delta:', delta)
     # needs to be corrected
     if args.preprocessing == 'log FCNN Gridsearch':
-        for i in args.marks + args.output:
+        for i in args.marks:
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
             df[i] = np.log10(df[i])
         X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         train_dl = DataLoader(train_ds, batch_size=args.batch_size)
         valid_ds = TensorDataset(X_val, y_val)
         valid_dl = DataLoader(valid_ds, batch_size=args.batch_size*(2**4))
-        def train_mlp(config, checkpoint_dir=None, data_dir=None):
+        def train_mlp(config, checkpoint_dir='development/', data_dir=None):
             net = MLP(config["l1"], config["l2"])
             device = "cpu"
             if torch.cuda.is_available():
