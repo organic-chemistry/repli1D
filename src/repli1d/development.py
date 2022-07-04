@@ -11,6 +11,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
 from sklearn.metrics import make_scorer
 from repli1d.models import mlp
+import pickle
 
 if __name__ == '__main__':
 
@@ -222,6 +223,9 @@ if __name__ == '__main__':
                                                    args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
+        filename = 'development/finalized_model.sav'
+        pickle.dump(regr, open(filename, 'wb'))
+
     if args.preprocessing == 'log to raw RF':
         for i in args.marks:
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
@@ -290,6 +294,8 @@ if __name__ == '__main__':
                                                    args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
+        filename = 'development/finalized_model.sav'
+        pickle.dump(regr, open(filename, 'wb'))
 
     if args.preprocessing == 'raw to log RF':
         for i in args.output:
@@ -363,6 +369,8 @@ if __name__ == '__main__':
                                                    args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
+        filename = 'development/finalized_model.sav'
+        pickle.dump(regr, open(filename, 'wb'))
 
     if args.preprocessing == 'raw to raw RF':
         X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
@@ -435,6 +443,9 @@ if __name__ == '__main__':
                                                    args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.show()
+        filename = 'development/finalized_model.sav'
+        pickle.dump(regr, open(filename, 'wb'))
+
     if args.preprocessing == 'log to log FCNN':
         for i in args.marks + args.output:
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
