@@ -13,11 +13,55 @@ from sklearn.metrics import make_scorer
 from repli1d.models import mlp
 import pickle
 
+def histogram(preprocessing, cell_line, output_dir, image_format):
+     
+    observed_test = pd.read_csv(
+        'development/{}_observed_test.csv'.format(args.cell_line)).to_numpy()
+    predicted_test = pd.read_csv(
+        'development/{}_predicted_test.csv'.format(args.cell_line)).to_numpy()
+    df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+    masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+    print('Number of NANs is {}'.format(masks['signal'].sum()))
+    df.loc[~masks['signal'].astype(bool)] = np.nan
+    df = df.dropna()
+    y_train = df['initiation'].to_numpy()
+    min_init_non_zero = np.min(y_train[np.nonzero(y_train)])
+    max_init = np.max(df['initiation'])
+    min_init = np.min(df['initiation'])
+    if preprocessing == 'min max normalization':
+        scale_denominator = (max_init - min_init)
+        unscaled_predicted = predicted_test * scale_denominator + min_init
+        unscaled_y_test = observed_test * scale_denominator + min_init
+        plt.figure(figsize=(5, 5))
+        p1 = -2
+        p2 = 2
+        plt.plot([p1, p2], [p1, p2], 'w-')
+        plt.hist2d(np.log10(unscaled_y_test.ravel() + min_init_non_zero),
+                np.log10(unscaled_predicted.ravel() + min_init_non_zero),
+                bins=[400, 400], cmap=plt.cm.nipy_spectral,
+                norm=matplotlib.colors.LogNorm(
+                vmin=None, vmax=None, clip=False))
+
+        plt.xlim(-2, 2)
+        plt.ylim(-2, 2)
+        plt.clim(vmin=1, vmax=10**3)
+        plt.colorbar()
+        plt.xlabel('Log(observed values + min(observed values))')
+        plt.ylabel('Log(predicted values + min(observed values))')
+        plt.title('Predicted values with respect to the observed values for {}'.format(
+            cell_line))
+        plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
+                                    cell_line,
+                                    image_format),
+                    dpi=300, bbox_inches='tight', transparent=False)
+        plt.close()
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--preprocessing', type=str, default='log')
+    parser.add_argument('--method', type=str, default='evaluation hist2d')
     parser.add_argument('--max_epoch', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--cell_line', type=str, default='K562')
@@ -681,3 +725,7 @@ if __name__ == '__main__':
         with open('{}{}history.csv'.format(args.output_dir,
                                            args.preprocessing), mode='w') as f:
             hist.to_csv(f)
+    if args.method == 'evaluation hist2d':
+        histogram(preprocessing=args.preprocessing, cell_line=args.cell_line,
+            output_dir=args.output_dir, image_format=args.image_format)
+        

@@ -19,6 +19,7 @@ from torch import float32, optim
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
+
 torch.cuda.empty_cache()
 
 loss_func = F.mse_loss
@@ -34,7 +35,7 @@ class MLP(nn.Module):
 
     def forward(self, xb):
         xb = F.relu(self.lin1(xb))
-        xb = self.lin2(xb)
+        xb = F.relu(self.lin2(xb))
         return xb
 
 
@@ -103,57 +104,6 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
 
 def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
            preprocessing, output_dir, image_format, cell_line):
-    if preprocessing == 'raw to log':
-        print(mean_squared_error(10**predicted, 10**y_train))
-        print(mean_squared_error(10**predicted_test, 10**y_test))
-        plt.scatter(y_train.ravel(), predicted, s=0.05)
-        plt.title('Log of predicted values with respect to the log of observed values')
-        plt.ylabel('Predicted vlaues')
-        plt.xlabel('Observed values')
-        plt.axis('square')
-        plt.xlim(-2, 2)
-        plt.ylim(-2, 2)
-        plt.savefig('{}{}distribution_performance.{}'.format(output_dir,
-                    preprocessing, image_format),
-                    dpi=300, bbox_inches='tight')
-        plt.savefig('{}{}distribution_performance.eps'.format(output_dir,
-                    preprocessing),
-                    dpi=300, bbox_inches='tight')
-        plt.close()
-        plt.figure(figsize=(10, 10))
-        plt.plot([p1, p2], [p1, p2], 'w-')
-        plt.hist2d(y_train.ravel(), predicted.ravel(),
-                   bins=[300, 300],
-                   cmap=plt.cm.nipy_spectral, norm=matplotlib.colors.LogNorm(
-                   vmin=None, vmax=None, clip=False))
-        plt.xlim(-2, 2)
-        plt.ylim(-2, 2)
-        plt.colorbar()
-        plt.xlabel('Log(observed values + min(observed values))')
-        plt.ylabel('Log(predicted values + min(predicted values))')
-        plt.title('Log of predicted values with respect to the log of observed values for {}'.format(
-            cell_line))
-        plt.savefig('{}{}{}.{}'.format(output_dir,
-                                       cell_line, preprocessing,
-                                       image_format),
-                    dpi=300, bbox_inches='tight', transparent=False)
-        plt.savefig('{}{}{}.eps'.format(output_dir,
-                                        cell_line,
-                                        preprocessing),
-                    dpi=300, bbox_inches='tight', transparent=False)
-        plt.close()
-        plt.plot(y_train[0:50], '-o')
-        plt.plot(predicted[0:50], '-o')
-        plt.legend(['Observed', 'Predicted'], loc='upper right')
-        plt.title('Comparison of log of observed values and log of predicted values by FCNN')
-        plt.savefig('{}{}{}comaprison_r_p.{}'.format(output_dir, preprocessing,
-                                                     cell_line,
-                                                     image_format),
-                    dpi=300, bbox_inches='tight', transparent=False)
-        plt.savefig('{}{}{}comaprison_r_p.eps'.format(output_dir, preprocessing,
-                                                      cell_line),
-                    dpi=300, bbox_inches='tight', transparent=False)
-        plt.close()
 
     if preprocessing == 'log to raw' or preprocessing == 'raw to raw':
         print(mean_squared_error(predicted, y_train))
@@ -172,7 +122,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                                               preprocessing),
                     dpi=300, bbox_inches='tight')
         plt.close()
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
         plt.hist2d(np.log10(y_train.ravel() + 1), np.log10(predicted.ravel() + 1),
                    bins=[300, 300], cmap=plt.cm.nipy_spectral,
@@ -180,6 +130,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                                   clip=False))
         plt.xlim(0, 2)
         plt.ylim(0, 2)
+        plt.clim(vmin=10, vmax=10**3)
         plt.colorbar()
         plt.xlabel('Log(observed values + 1)')
         plt.ylabel('Log(predicted values + 1)')
@@ -205,7 +156,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
 
-    if preprocessing == 'log to log':
+    if preprocessing == 'log to log' or preprocessing == 'raw to log':
         print(mean_squared_error(10**predicted, 10**y_train))
         print(mean_squared_error(10**predicted_test, 10**y_test))
         plt.scatter(y_train, predicted, s=0.1)
@@ -221,7 +172,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                                               preprocessing),
                     dpi=300, bbox_inches='tight')
         plt.close()
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
         plt.hist2d(y_train.ravel(), predicted.ravel(),
                    bins=[300, 300],
@@ -229,9 +180,10 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                     vmin=None, vmax=None, clip=False))
         plt.xlim(-2, 2)
         plt.ylim(-2, 2)
+        plt.clim(vmin=10, vmax=10**3)
         plt.colorbar()
-        plt.xlabel('Log(observed values+min(observed values))')
-        plt.ylabel('Log(predicted values+min(observed values))')
+        plt.xlabel('Log(observed values + min(observed values))')
+        plt.ylabel('Log(predicted values + min(observed values))')
         plt.title('Predicted values with respect to the observed values for {}'.format(
             cell_line))
         plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
@@ -257,10 +209,12 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
 
     if preprocessing == 'min max normalization':
         scale_denominator = (max_init - min_init)
-        print(mean_squared_error(predicted * scale_denominator + min_init,
-                                 y_train * scale_denominator + min_init))
-        print(mean_squared_error(predicted_test * scale_denominator + min_init,
-                                 y_test * scale_denominator + min_init))
+        unscaled_predicted = predicted * scale_denominator + min_init
+        unscaled_y_train = y_train * scale_denominator + min_init
+        print(mean_squared_error(unscaled_predicted,
+                                 unscaled_y_train))
+        print(mean_squared_error(unscaled_predicted,
+                                 unscaled_y_train))
         plt.scatter(y_train, predicted, s=0.1)
         plt.title('Normalized predicted values with respect to the normalized observed values')
         plt.ylabel('Predicted vlaues')
@@ -270,17 +224,26 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                     preprocessing, image_format),
                     dpi=300, bbox_inches='tight')
         plt.close()
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
-        plt.hist2d(np.log10(y_train.ravel() + 1), np.log10(predicted.ravel() +
-                   1), bins=[300, 300], cmap=plt.cm.nipy_spectral,
+        df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+        masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+        print('Number of NANs is {}'.format(masks['signal'].sum()))
+        df.loc[~masks['signal'].astype(bool)] = np.nan
+        df = df.dropna()
+        unscaled_y = df['initiation'].to_numpy()
+        min_init_non_zero = np.min(unscaled_y[np.nonzero(unscaled_y)])
+        plt.hist2d(np.log10(unscaled_y_train.ravel() + min_init_non_zero),
+                   np.log10(unscaled_predicted.ravel() + min_init_non_zero),
+                   bins=[300, 300], cmap=plt.cm.nipy_spectral,
                    norm=matplotlib.colors.LogNorm(
                    vmin=None, vmax=None, clip=False))
-        plt.xlim(-0.025, 0.3)
-        plt.ylim(-0.025, 0.3)
+        plt.xlim(-2, 2)
+        plt.ylim(-2, 2)
+        plt.clim(vmin=10, vmax=10**3)
         plt.colorbar()
-        plt.xlabel('Log(observed values+1)')
-        plt.ylabel('Log(predicted values+1)')
+        plt.xlabel('Log(observed values + min(observed values))')
+        plt.ylabel('Log(predicted values+ min(observed values))')
         plt.title('Predicted values with respect to the observed values for {}'.format(
             cell_line))
         plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
@@ -321,7 +284,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--method', type=str, default='FCNN')
     parser.add_argument('--preprocessing', type=str, default='log to raw')
-    parser.add_argument('--max_epoch', type=int, default=40)
+    parser.add_argument('--max_epoch', type=int, default=300)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
@@ -438,8 +401,10 @@ if __name__ == '__main__':
         pd.DataFrame(y_test, columns=['observed_values']).to_csv(
             '{}{}_observed_test.csv'.format(args.output_dir,
                                             args.cell_line))
-        p1 = max(max(predicted), max(y_train))
-        p2 = min(min(predicted), min(y_train))
+        # p1 = max(max(predicted), max(y_train))
+        # p2 = min(min(predicted), min(y_train))
+        p1 = -2
+        p2 = 2
         predicted1 = model(X).cpu().detach().numpy()
         df['predicted'] = predicted1
         fig = go.Figure()
@@ -479,11 +444,11 @@ if __name__ == '__main__':
         train_ds = TensorDataset(X_train, y_train)
         train_dl = DataLoader(train_ds, batch_size=args.batch_size)
         valid_ds = TensorDataset(X_val, y_val)
-        valid_dl = DataLoader(valid_ds, batch_size=args.batch_size*(2**4))
+        valid_dl = DataLoader(valid_ds, batch_size=args.batch_size)
 
         def train_mlp(config, checkpoint_dir='development/', data_dir=None):
             # net = MLP(config["units"], config["l1"], config["l2"])
-
+            # net = MLP(config["units"])
             net = MLP(config["units"])
             device = "cpu"
             if torch.cuda.is_available():
@@ -494,14 +459,16 @@ if __name__ == '__main__':
 
             criterion = nn.MSELoss()
             # optimizer = optim.SGD(net.parameters(), lr=config["lr"], momentum=0.9)
-            optimizer = optim.Adam(net.parameters(), lr=config["lr"])
+            # optimizer = optim.Adam(net.parameters(), lr=config["lr"])
+            # optimizer = optim.Adam(net.parameters())
+            optimizer = optim.Adam()
 
             if checkpoint_dir:
                 model_state, optimizer_state = torch.load(
                     os.path.join(checkpoint_dir, "checkpoint"))
                 net.load_state_dict(model_state)
                 optimizer.load_state_dict(optimizer_state)
-            for epoch in range(10):  # loop over the dataset multiple times
+            for epoch in range(160):  # loop over the dataset multiple times
                 running_loss = 0.0
                 epoch_steps = 0
                 for i, data in enumerate(train_dl, 0):
@@ -568,11 +535,11 @@ if __name__ == '__main__':
         #         "units": tune.qrandint(40, 100),
         #         "batch_size": tune.choice([2, 4, 8, 16])
         #     }
-        def main(num_samples=10, max_num_epochs=10, gpus_per_trial=3):
+        def main1(num_samples=20, max_num_epochs=160, gpus_per_trial=4):
             config = {
                 "units": tune.qrandint(40, 1000),
-                "batch_size": tune.choice([2, 4, 8, 16]),
-                "lr": tune.loguniform(1e-4, 1e-1)
+                "batch_size": tune.choice([32, 64, 128]),
+                # "lr": tune.loguniform(1e-4, 1e-1)
             }
             scheduler = ASHAScheduler(
                 metric="loss",
@@ -615,4 +582,5 @@ if __name__ == '__main__':
             test_acc = test_loss(best_trained_model, device)
             print("Best trial test set loss: {}".format(test_acc))
 
-        main(num_samples=20, max_num_epochs=20, gpus_per_trial=3)
+        main1(num_samples=20, max_num_epochs=160, gpus_per_trial=4)
+        
