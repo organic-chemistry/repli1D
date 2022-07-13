@@ -16,9 +16,9 @@ import pickle
 def histogram(preprocessing, cell_line, output_dir, image_format):
      
     observed_test = pd.read_csv(
-        'development/{}_observed_test.csv'.format(args.cell_line)).to_numpy()
+        'development/{}_observed_test.csv'.format(args.cell_line))['observed_values'].to_numpy()
     predicted_test = pd.read_csv(
-        'development/{}_predicted_test.csv'.format(args.cell_line)).to_numpy()
+        'development/{}_predicted_test.csv'.format(args.cell_line))['predictions'].to_numpy()
     df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
     masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
     print('Number of NANs is {}'.format(masks['signal'].sum()))
@@ -28,33 +28,41 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     min_init_non_zero = np.min(y_train[np.nonzero(y_train)])
     max_init = np.max(df['initiation'])
     min_init = np.min(df['initiation'])
-    if preprocessing == 'min max normalization':
-        scale_denominator = (max_init - min_init)
-        unscaled_predicted = predicted_test * scale_denominator + min_init
-        unscaled_y_test = observed_test * scale_denominator + min_init
-        plt.figure(figsize=(5, 5))
-        p1 = -2
-        p2 = 2
-        plt.plot([p1, p2], [p1, p2], 'w-')
-        plt.hist2d(np.log10(unscaled_y_test.ravel() + min_init_non_zero),
-                np.log10(unscaled_predicted.ravel() + min_init_non_zero),
-                bins=[400, 400], cmap=plt.cm.nipy_spectral,
-                norm=matplotlib.colors.LogNorm(
-                vmin=None, vmax=None, clip=False))
+    # if preprocessing == 'min max normalization':
+    #     scale_denominator = (max_init - min_init)
+    #     unscaled_predicted = predicted_test * scale_denominator + min_init
+    #     unscaled_y_test = observed_test * scale_denominator + min_init
+    #     log_un_y_test = np.log10(unscaled_y_test.ravel() + min_init_non_zero)
+    #     log_un_predicted = np.log10(unscaled_predicted.ravel() + min_init_non_zero)
+    # if preprocessing == 'raw to raw' or preprocessing == 'log to raw':
+    #     log_un_y_test = np.log10(observed_test.ravel() + min_init_non_zero)
+    #     log_un_predicted = np.log10(predicted_test.ravel() + min_init_non_zero)
+    # if preprocessing == 'raw to log' or preprocessing == 'log to log':
+    #     log_un_y_test = observed_test
+    #     log_un_predicted = predicted_test
+    plt.figure(figsize=(5, 5))
+    p1 = -2
+    p2 = 2
+    plt.plot([p1, p2], [p1, p2], 'w-')
+    plt.hist2d(log_un_y_test,
+            log_un_predicted,
+            bins=[400, 400], cmap=plt.cm.nipy_spectral,
+            norm=matplotlib.colors.LogNorm(
+            vmin=None, vmax=None, clip=False))
 
-        plt.xlim(-2, 2)
-        plt.ylim(-2, 2)
-        plt.clim(vmin=1, vmax=10**3)
-        plt.colorbar()
-        plt.xlabel('Log(observed values + min(observed values))')
-        plt.ylabel('Log(predicted values + min(observed values))')
-        plt.title('Predicted values with respect to the observed values for {}'.format(
-            cell_line))
-        plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
-                                    cell_line,
-                                    image_format),
-                    dpi=300, bbox_inches='tight', transparent=False)
-        plt.close()
+    plt.xlim(-2, 2)
+    plt.ylim(-2, 2)
+    plt.clim(vmin=1, vmax=10**3)
+    plt.colorbar()
+    plt.xlabel('Log(observed values + min(observed values))')
+    plt.ylabel('Log(predicted values + min(observed values))')
+    plt.title('Predicted values with respect to the observed values for {}'.format(
+        cell_line))
+    plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
+                                cell_line,
+                                image_format),
+                dpi=300, bbox_inches='tight', transparent=False)
+    plt.close()
 
 if __name__ == '__main__':
 

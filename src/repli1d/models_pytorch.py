@@ -106,6 +106,10 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
            preprocessing, output_dir, image_format, cell_line):
 
     if preprocessing == 'log to raw' or preprocessing == 'raw to raw':
+        unscaled_predicted = predicted
+        unscaled_y_train = y_train
+        unscaled_predicted_test = predicted_test
+        unscaled_y_test = y_test
         print(mean_squared_error(predicted, y_train))
         print(mean_squared_error(predicted_test, y_test))
         plt.scatter(np.log10(y_train.ravel() + 1), np.log10(predicted + 1),
@@ -157,6 +161,10 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.close()
 
     if preprocessing == 'log to log' or preprocessing == 'raw to log':
+        unscaled_predicted = 10**predicted
+        unscaled_y_train = 10**y_train
+        unscaled_predicted_test = 10**predicted_test
+        unscaled_y_test = 10**y_test
         print(mean_squared_error(10**predicted, 10**y_train))
         print(mean_squared_error(10**predicted_test, 10**y_test))
         plt.scatter(y_train, predicted, s=0.1)
@@ -211,6 +219,8 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         scale_denominator = (max_init - min_init)
         unscaled_predicted = predicted * scale_denominator + min_init
         unscaled_y_train = y_train * scale_denominator + min_init
+        unscaled_predicted_test = predicted_test * scale_denominator + min_init
+        unscaled_y_test = y_test * scale_denominator + min_init
         print(mean_squared_error(unscaled_predicted,
                                  unscaled_y_train))
         print(mean_squared_error(unscaled_predicted,
@@ -260,6 +270,18 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                                      image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
+    pd.DataFrame(unscaled_predicted, columns=['predictions']).to_csv(
+            '{}{}_predicted_train.csv'.format(args.output_dir,
+                                              args.cell_line))
+    pd.DataFrame(unscaled_predicted_test, columns=['predictions']).to_csv(
+        '{}{}_predicted_test.csv'.format(args.output_dir,
+                                            args.cell_line))
+    pd.DataFrame(unscaled_y_train, columns=['observed_values']).to_csv(
+        '{}{}_observed_train.csv'.format(args.output_dir,
+                                            args.cell_line))
+    pd.DataFrame(unscaled_y_test, columns=['observed_values']).to_csv(
+        '{}{}_observed_test.csv'.format(args.output_dir,
+                                        args.cell_line))
 
 
 def interpret(model, X, output_dir, cell_line, marks):
@@ -389,18 +411,6 @@ if __name__ == '__main__':
         predicted_test = model(X_test).cpu().detach().numpy()
         predicted = model(X_train).cpu().detach().numpy()
         y_train = y_train.cpu().detach().numpy()
-        pd.DataFrame(predicted, columns=['predictions']).to_csv(
-            '{}{}_predicted_train.csv'.format(args.output_dir,
-                                              args.cell_line))
-        pd.DataFrame(predicted_test, columns=['predictions']).to_csv(
-            '{}{}_predicted_test.csv'.format(args.output_dir,
-                                             args.cell_line))
-        pd.DataFrame(y_train, columns=['observed_values']).to_csv(
-            '{}{}_observed_train.csv'.format(args.output_dir,
-                                             args.cell_line))
-        pd.DataFrame(y_test, columns=['observed_values']).to_csv(
-            '{}{}_observed_test.csv'.format(args.output_dir,
-                                            args.cell_line))
         # p1 = max(max(predicted), max(y_train))
         # p2 = min(min(predicted), min(y_train))
         p1 = -2
