@@ -28,18 +28,18 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     min_init_non_zero = np.min(y_train[np.nonzero(y_train)])
     max_init = np.max(df['initiation'])
     min_init = np.min(df['initiation'])
-    # if preprocessing == 'min max normalization':
-    #     scale_denominator = (max_init - min_init)
-    #     unscaled_predicted = predicted_test * scale_denominator + min_init
-    #     unscaled_y_test = observed_test * scale_denominator + min_init
-    #     log_un_y_test = np.log10(unscaled_y_test.ravel() + min_init_non_zero)
-    #     log_un_predicted = np.log10(unscaled_predicted.ravel() + min_init_non_zero)
-    # if preprocessing == 'raw to raw' or preprocessing == 'log to raw':
-    #     log_un_y_test = np.log10(observed_test.ravel() + min_init_non_zero)
-    #     log_un_predicted = np.log10(predicted_test.ravel() + min_init_non_zero)
-    # if preprocessing == 'raw to log' or preprocessing == 'log to log':
-    #     log_un_y_test = observed_test
-    #     log_un_predicted = predicted_test
+    if preprocessing == 'min max normalization':
+        scale_denominator = (max_init - min_init)
+        unscaled_predicted = predicted_test * scale_denominator + min_init
+        unscaled_y_test = observed_test * scale_denominator + min_init
+        log_un_y_test = np.log10(unscaled_y_test.ravel() + min_init_non_zero)
+        log_un_predicted = np.log10(unscaled_predicted.ravel() + min_init_non_zero)
+    if preprocessing == 'raw to raw' or preprocessing == 'log to raw':
+        log_un_y_test = np.log10(observed_test.ravel() + min_init_non_zero)
+        log_un_predicted = np.log10(predicted_test.ravel() + min_init_non_zero)
+    if preprocessing == 'raw to log' or preprocessing == 'log to log':
+        log_un_y_test = observed_test
+        log_un_predicted = predicted_test
     plt.figure(figsize=(5, 5))
     p1 = -2
     p2 = 2

@@ -210,7 +210,8 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                                      cell_line,
                                                      image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
-        plt.savefig('{}{}{}comaprison_r_p.eps'.format(output_dir, preprocessing,
+        plt.savefig('{}{}{}comaprison_r_p.eps'.format(output_dir,
+                                                      preprocessing,
                                                       cell_line),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
@@ -275,25 +276,33 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                               args.cell_line))
     pd.DataFrame(unscaled_predicted_test, columns=['predictions']).to_csv(
         '{}{}_predicted_test.csv'.format(args.output_dir,
-                                            args.cell_line))
+                                         args.cell_line))
     pd.DataFrame(unscaled_y_train, columns=['observed_values']).to_csv(
         '{}{}_observed_train.csv'.format(args.output_dir,
-                                            args.cell_line))
+                                         args.cell_line))
     pd.DataFrame(unscaled_y_test, columns=['observed_values']).to_csv(
         '{}{}_observed_test.csv'.format(args.output_dir,
                                         args.cell_line))
 
 
-def interpret(model, X, output_dir, cell_line, marks):
+def interpret(model, X, y, predicted, output_dir, cell_line, marks):
     ig = IntegratedGradients(model)
     rows = []
-    baseline = torch.zeros(1, 11).to(device)
-    for input in X:
+    baseline = torch.zeros(1, 11, requires_grad=True).to(device)
+    for i, input in enumerate(X):
         input.reshape(1, 11)
         attributions = ig.attribute(
-            input, baseline, target=0, return_convergence_delta=False)
-        rows.append([attributions])
-    attributions = pd.DataFrame(rows, columns=marks).to_csv(
+            input, baseline, return_convergence_delta=False)
+        attributions = attributions.detach().cpu()
+        attributions = np.array(attributions)
+        rows = np.append(rows, attributions)
+        rows = np.append(rows, y[i])
+        rows = np.append(rows, predicted[i])
+    rows = np.array(rows)
+    rows = np.reshape(rows, (-1, 13), order='C')
+    attributions = pd.DataFrame(rows,
+                                columns=marks
+                                + ['PODLS']+['Predicted_PODLS']).to_csv(
         '{}{}_attributions.csv'.format(output_dir,
                                        cell_line))
     print('IG Attributions:', attributions)
@@ -352,7 +361,8 @@ if __name__ == '__main__':
                 df[i] = (df[i] - np.min(df[i])) / (
                     np.max(df[i]) - np.min(df[i]))
         if args.preprocessing == 'raw to log':
-            df['initiation'] = df['initiation'] + np.min(df['initiation'][(df['initiation'] != 0)])
+            df['initiation'] = df['initiation'] + np.min(
+                df['initiation'][(df['initiation'] != 0)])
             df['initiation'] = np.log10(df['initiation'])
         if args.preprocessing == 'raw to raw':
             pass
@@ -435,7 +445,29 @@ if __name__ == '__main__':
         report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                preprocessing=args.preprocessing, output_dir=args.output_dir,
                image_format=args.image_format, cell_line=args.cell_line)
-        # interpret(model, X, output_dir=args.output_dir, cell_line=args.cell_line, marks=args.marks)
+
+    if args.method == 'Integrated of gradients':
+        df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+        masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+        print('Number of NANs is {}'.format(masks['signal'].sum()))
+        df.loc[~masks['signal'].astype(bool)] = np.nan
+        df = df.dropna()
+        if args.preprocessing == 'log to raw':
+            for i in args.marks:
+                df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+                df[i] = np.log10(df[i])
+        X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
+        y_test = df.loc[df['chrom'] == 'chr1', 'initiation'].to_numpy()
+        X_test = torch.tensor(X_test, dtype=float32).to(device)
+        model = MLP()
+        model = nn.DataParallel(model)
+        model.load_state_dict(torch.load('development/model_weights.pth'))
+        model.to(device)
+        model.eval()
+        predicted = model(X_test).detach().cpu().numpy()
+        interpret(model, X_test, y_test, predicted, output_dir=args.output_dir,
+                  cell_line=args.cell_line, marks=args.marks)
+
     if args.method == 'log FCNN Gridsearch':
         for i in args.marks:
             df[i] = df[i] + np.min(df[i][(df[i] != 0)])
@@ -593,4 +625,3 @@ if __name__ == '__main__':
             print("Best trial test set loss: {}".format(test_acc))
 
         main1(num_samples=20, max_num_epochs=160, gpus_per_trial=4)
-        
