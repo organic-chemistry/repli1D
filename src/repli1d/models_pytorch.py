@@ -58,7 +58,7 @@ def loss_batch(model, loss_func, xb, yb, opt=None):
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
     # Early stopping
     last_loss = 1000
-    patience = 3
+    patience = 5
     trigger_times = 0
     val_loss_list = []
     train_loss_list = []
@@ -128,7 +128,8 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.close()
         plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
-        plt.hist2d(np.log10(y_train.ravel() + 1), np.log10(predicted.ravel() + 1),
+        plt.hist2d(np.log10(y_train.ravel() + 1), np.log10(predicted.ravel()
+                                                           + 1),
                    bins=[300, 300], cmap=plt.cm.nipy_spectral,
                    norm=matplotlib.colors.LogNorm(vmin=None, vmax=None,
                                                   clip=False))
@@ -155,7 +156,8 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.savefig('{}{}{}comaprison_r_p.{}'.format(output_dir, preprocessing,
                                                      cell_line, image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
-        plt.savefig('{}{}{}comaprison_r_p.eps'.format(output_dir, preprocessing,
+        plt.savefig('{}{}{}comaprison_r_p.eps'.format(output_dir,
+                                                      preprocessing,
                                                       cell_line),
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
@@ -285,10 +287,20 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                                         args.cell_line))
 
 
-def interpret(model, X, y, predicted, output_dir, cell_line, marks):
+def interpret(model, X, y, predicted, output_dir, cell_line, marks,
+              baseline_method='zero'):
     ig = IntegratedGradients(model)
     rows = []
-    baseline = torch.zeros(1, 11, requires_grad=True).to(device)
+    if baseline_method == 'zero':
+        baseline = torch.zeros(1, 11, requires_grad=True).to(device)
+    if baseline_method == 'mean':
+        baseline = torch.mean(X, dim=0).requires_grad_()
+        baseline = torch.reshape(baseline, (1, 11))
+    if baseline_method == 'zero_output':
+        baseline = torch.Tensor(np.array([1, 0.75, 0.8, 0.9, 1, 0.75, 1,
+                                          1.5, 0.75, 1, 1]).reshape(1,
+                                                                    11)
+                                ).requires_grad_().to(device)
     for i, input in enumerate(X):
         input.reshape(1, 11)
         attributions = ig.attribute(
@@ -300,11 +312,21 @@ def interpret(model, X, y, predicted, output_dir, cell_line, marks):
         rows = np.append(rows, predicted[i])
     rows = np.array(rows)
     rows = np.reshape(rows, (-1, 13), order='C')
+    columns_attr = ['Attribution_H2A.Z', 'Attributions_H3K27ac', 
+                    'Attributions_H3K79me2', 'Attributions_H3K27me3',
+                    'Attributions_H3K9ac', 'Attributions_H3K4me2',
+                    'Attributions_H3K4me3', 'Attributions_H3K9me3',
+                    'Attributions_H3K4me1', 'Attributions_H3K36me3',
+                    'Attributions_H4K20me1', 'PODLS', "Predicted_PODLS"]
     attributions = pd.DataFrame(rows,
-                                columns=marks
-                                + ['PODLS']+['Predicted_PODLS']).to_csv(
-        '{}{}_attributions.csv'.format(output_dir,
-                                       cell_line))
+                                columns=columns_attr)
+    # if the model is log to raw
+    X = 10**X.cpu()
+    df = pd.DataFrame(X.cpu(), columns=marks)
+    attributions = pd.concat([attributions, df], axis=1).to_csv(
+        '{}{}_{}_attributions.csv'.format(output_dir,
+                                          cell_line,
+                                          baseline_method))
     print('IG Attributions:', attributions)
     # print('Convergence Delta:', delta)
 
@@ -446,7 +468,7 @@ if __name__ == '__main__':
                preprocessing=args.preprocessing, output_dir=args.output_dir,
                image_format=args.image_format, cell_line=args.cell_line)
 
-    if args.method == 'Integrated of gradients':
+    if args.method == 'Integrated gradients':
         df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
         masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
         print('Number of NANs is {}'.format(masks['signal'].sum()))
@@ -466,7 +488,8 @@ if __name__ == '__main__':
         model.eval()
         predicted = model(X_test).detach().cpu().numpy()
         interpret(model, X_test, y_test, predicted, output_dir=args.output_dir,
-                  cell_line=args.cell_line, marks=args.marks)
+                  cell_line=args.cell_line, marks=args.marks,
+                  baseline_method='zero_output')
 
     if args.method == 'log FCNN Gridsearch':
         for i in args.marks:

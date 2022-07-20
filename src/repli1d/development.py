@@ -13,12 +13,15 @@ from sklearn.metrics import make_scorer
 from repli1d.models import mlp
 import pickle
 
+
 def histogram(preprocessing, cell_line, output_dir, image_format):
-     
+
     observed_test = pd.read_csv(
-        'development/{}_observed_test.csv'.format(args.cell_line))['observed_values'].to_numpy()
+        'development/{}_observed_test.csv'.format(
+            args.cell_line))['observed_values'].to_numpy()
     predicted_test = pd.read_csv(
-        'development/{}_predicted_test.csv'.format(args.cell_line))['predictions'].to_numpy()
+        'development/{}_predicted_test.csv'.format(
+            args.cell_line))['predictions'].to_numpy()
     df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
     masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
     print('Number of NANs is {}'.format(masks['signal'].sum()))
@@ -33,7 +36,8 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
         unscaled_predicted = predicted_test * scale_denominator + min_init
         unscaled_y_test = observed_test * scale_denominator + min_init
         log_un_y_test = np.log10(unscaled_y_test.ravel() + min_init_non_zero)
-        log_un_predicted = np.log10(unscaled_predicted.ravel() + min_init_non_zero)
+        log_un_predicted = np.log10(unscaled_predicted.ravel() +
+                                    min_init_non_zero)
     if preprocessing == 'raw to raw' or preprocessing == 'log to raw':
         log_un_y_test = np.log10(observed_test.ravel() + min_init_non_zero)
         log_un_predicted = np.log10(predicted_test.ravel() + min_init_non_zero)
@@ -45,10 +49,10 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     p2 = 2
     plt.plot([p1, p2], [p1, p2], 'w-')
     plt.hist2d(log_un_y_test,
-            log_un_predicted,
-            bins=[400, 400], cmap=plt.cm.nipy_spectral,
-            norm=matplotlib.colors.LogNorm(
-            vmin=None, vmax=None, clip=False))
+               log_un_predicted,
+               bins=[400, 400], cmap=plt.cm.nipy_spectral,
+               norm=matplotlib.colors.LogNorm(
+                vmin=None, vmax=None, clip=False))
 
     plt.xlim(-2, 2)
     plt.ylim(-2, 2)
@@ -59,10 +63,11 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     plt.title('Predicted values with respect to the observed values for {}'.format(
         cell_line))
     plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
-                                cell_line,
-                                image_format),
+                                   cell_line,
+                                   image_format),
                 dpi=300, bbox_inches='tight', transparent=False)
     plt.close()
+
 
 if __name__ == '__main__':
 
@@ -70,7 +75,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--preprocessing', type=str, default='log')
     parser.add_argument('--method', type=str, default='evaluation hist2d')
-    parser.add_argument('--max_epoch', type=int, default=150)
+    parser.add_argument('--max_epoch', type=int, default=300)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
@@ -290,7 +295,8 @@ if __name__ == '__main__':
         y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
         X_train, y_train = shuffle(X_train, y_train, random_state=42)
         regr = RandomForestRegressor(max_depth=20, min_samples_leaf=20,
-                                     n_estimators=500, n_jobs=20, random_state=0)
+                                     n_estimators=500, n_jobs=20,
+                                     random_state=0)
         regr.fit(X_train, y_train.ravel())
         predicted_test = regr.predict(X_test)
         predicted = regr.predict(X_train)
@@ -317,7 +323,8 @@ if __name__ == '__main__':
         plt.ylabel('Predicted vlaues')
         plt.xlabel('Observed values')
         plt.axis('square')
-        plt.savefig('{}distribution_performance.{}'.format(args.output_dir, args.image_format),
+        plt.savefig('{}distribution_performance.{}'.format(args.output_dir,
+                                                           args.image_format),
                     dpi=300, bbox_inches='tight')
         plt.close()
         plt.figure(figsize=(10, 10))
@@ -361,7 +368,8 @@ if __name__ == '__main__':
         y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
         X_train, y_train = shuffle(X_train, y_train)
         regr = RandomForestRegressor(max_depth=20, min_samples_leaf=20,
-                                     n_estimators=500, n_jobs=20, random_state=0)
+                                     n_estimators=500, n_jobs=20,
+                                     random_state=0)
         regr.fit(X_train, y_train.ravel())
         predicted_test = regr.predict(X_test)
         predicted = regr.predict(X_train)
@@ -433,7 +441,8 @@ if __name__ == '__main__':
         y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
         X_train, y_train = shuffle(X_train, y_train, random_state=42)
         regr = RandomForestRegressor(max_depth=20, min_samples_leaf=20,
-                                     n_estimators=200, n_jobs=-1, random_state=0)
+                                     n_estimators=200, n_jobs=-1,
+                                     random_state=0)
         regr.fit(X_train, y_train.ravel())
         predicted_test = regr.predict(X_test)
         predicted = regr.predict(X_train)
@@ -471,7 +480,6 @@ if __name__ == '__main__':
                    bins=[100, 100],
                    cmap=plt.cm.nipy_spectral, norm=matplotlib.colors.LogNorm(
                        vmin=None, vmax=None, clip=False))
-    
         # plt.yscale('log')
         # plt.ylim([0, 4])
         # plt.xlim([0, 4])
@@ -735,5 +743,4 @@ if __name__ == '__main__':
             hist.to_csv(f)
     if args.method == 'evaluation hist2d':
         histogram(preprocessing=args.preprocessing, cell_line=args.cell_line,
-            output_dir=args.output_dir, image_format=args.image_format)
-        
+                  output_dir=args.output_dir, image_format=args.image_format)

@@ -1,16 +1,15 @@
 
 import argparse
 from hashlib import shake_128
+
 import matplotlib
-
-matplotlib.rcParams['pdf.fonttype'] = 42
-matplotlib.rcParams['ps.fonttype'] = 42
-
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 
 
 if __name__ == '__main__':
@@ -43,7 +42,8 @@ if __name__ == '__main__':
             # df[i] = np.log10(df[i])
             sns.displot(df, x=i, bins=200)
             plt.title('{} of log of values for {}'.format(args.distribution,
-                                                          args.cell_line), fontsize=18)
+                                                          args.cell_line),
+                      fontsize=18)
             plt.savefig('{}{}{}_{}.{}'.format(args.output_dir,
                                               args.distribution,
                                               args.cell_line,
@@ -125,7 +125,7 @@ if __name__ == '__main__':
         df.loc[~masks['signal'].astype(bool)] = np.nan
         df = df.dropna()
         print(df)
-        fig, (ax, ax1) = plt.subplots(2, 1,figsize=(16.8, 7*2))
+        fig, (ax, ax1) = plt.subplots(2, 1, figsize=(16.8, 7*2))
         s = 31500
         e = 34000
         s1 = 32500
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         axr.set_ylabel("RFD", c='#D45500', fontsize=18)
 
         ax1.plot(df1['initiation'][s1:e1], c='#D40015')
-        ax1.set_xlabel('Genomic position', fontsize=18) # compact it
+        ax1.set_xlabel('Genomic position', fontsize=18)  # compact it
         ax1.set_ylabel("PODLS", c='#D40015', fontsize=18)
         ax1.set_yscale('log')
         axr1 = ax1.twinx()
@@ -148,13 +148,12 @@ if __name__ == '__main__':
         axr1.set_ylabel('H3K4me1', c='#00D4BF', fontsize=18)
         axr1.set_yscale('log')
         plt.savefig('{}{}{}.{}'.format(args.output_dir,
-                                            args.distribution,
-                                            args.cell_line,
-                                            args.image_format),
+                                       args.distribution,
+                                       args.cell_line,
+                                       args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False,
                     format='eps')
         plt.close()
-
 
     if args.distribution == 'raw marker podls':
         df = pd.read_csv('data/K562_2000.csv')
@@ -164,7 +163,8 @@ if __name__ == '__main__':
         df.loc[~masks['signal'].astype(bool)] = np.nan
         df = df.dropna()
         print(df)
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1,figsize=(16.8, 7*4), sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(16.8, 7*4),
+                                            sharex=True)
         s = 21000
         e = 31000
         # s1 = 20850
@@ -182,26 +182,25 @@ if __name__ == '__main__':
         ax3.plot(df1['H3K9me3'][s1:e1], c='red')
         ax3.set_ylabel("H3K9me3", c='red', fontsize=18)
         # ax3.set_yscale('log')
-        ax3.set_xlabel('Genomic position(2kbp)', fontsize=18) # compact it
+        ax3.set_xlabel('Genomic position(2kbp)', fontsize=18)  # compact it
         # ax1.set_yscale('log')
         # axr1 = ax1.twinx()
         # axr1.plot(df1['H3K27ac'][s1:e1], c='#007FD4')
         # axr1.set_ylabel('H3K27ac', c='#007FD4', fontsize=18)
         # axr1.set_yscale('log')
         plt.savefig('{}{}{}.{}'.format(args.output_dir,
-                                            args.distribution,
-                                            args.cell_line,
-                                            args.image_format),
+                                       args.distribution,
+                                       args.cell_line,
+                                       args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False,
                     format='eps')
         plt.close()
         plt.plot(df1['initiation'][s1:e1], c='#D45500')
         plt.ylabel("PODLS", c='#D45500', fontsize=18)
-        plt.xlabel('Genomic position(2kbp)', fontsize=18) # compact it
+        plt.xlabel('Genomic position(2kbp)', fontsize=18)  # compact it
         plt.savefig('{}{}{}__.{}'.format(args.output_dir,
-                                            args.distribution,
-                                            args.cell_line,
-                                            args.image_format),
+                                         args.distribution,
+                                         args.cell_line,
+                                         args.image_format),
                     dpi=300, bbox_inches='tight', transparent=False,
                     format='eps')
-
