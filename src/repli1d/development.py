@@ -23,6 +23,14 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
         'development/{}_predicted_test.csv'.format(
             args.cell_line))['predictions'].to_numpy()
     df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+    observed_train = pd.read_csv(
+        'development/{}_observed_train.csv'.format(
+            args.cell_line))['observed_values'].to_numpy()
+    predicted_train = pd.read_csv(
+        'development/{}_predicted_train.csv'.format(
+            args.cell_line))['predictions'].to_numpy()
+    observed_train, predicted_train = shuffle(observed_train, predicted_train, random_state=42)
+    df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
     masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
     print('Number of NANs is {}'.format(masks['signal'].sum()))
     df.loc[~masks['signal'].astype(bool)] = np.nan
@@ -33,23 +41,49 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     min_init = np.min(df['initiation'])
     if preprocessing == 'min max normalization':
         scale_denominator = (max_init - min_init)
-        unscaled_predicted = predicted_test * scale_denominator + min_init
+        unscaled_predicted_test = predicted_test * scale_denominator + min_init
         unscaled_y_test = observed_test * scale_denominator + min_init
+        unscaled_predicted_train = predicted_train * scale_denominator + min_init
+        unscaled_y_train = observed_train * scale_denominator + min_init
         log_un_y_test = np.log10(unscaled_y_test.ravel() + min_init_non_zero)
-        log_un_predicted = np.log10(unscaled_predicted.ravel() +
+        log_un_predicted_test = np.log10(unscaled_predicted_test.ravel() +
+                                    min_init_non_zero)
+        log_un_y_train = np.log10(unscaled_y_train.ravel() + min_init_non_zero)
+        log_un_predicted_train = np.log10(unscaled_predicted_train.ravel() +
                                     min_init_non_zero)
     if preprocessing == 'raw to raw' or preprocessing == 'log to raw':
+        unscaled_predicted_train = predicted_train
+        unscaled_y_train = observed_train
+        unscaled_predicted_test = predicted_test
+        unscaled_y_test = observed_test
         log_un_y_test = np.log10(observed_test.ravel() + min_init_non_zero)
-        log_un_predicted = np.log10(predicted_test.ravel() + min_init_non_zero)
+        log_un_predicted_test = np.log10(predicted_test.ravel() + min_init_non_zero)
+        log_un_y_train = np.log10(observed_train.ravel() + min_init_non_zero)
+        log_un_predicted_train = np.log10(predicted_train.ravel() + min_init_non_zero)
     if preprocessing == 'raw to log' or preprocessing == 'log to log':
+        unscaled_predicted_train = 10**predicted_train
+        unscaled_y_train = 10**observed_train
+        unscaled_predicted_test = 10**predicted_test
+        unscaled_y_test = 10**observed_test
         log_un_y_test = observed_test
-        log_un_predicted = predicted_test
+        log_un_predicted_test = predicted_test
+        log_un_y_train = observed_train
+        log_un_predicted_train = predicted_train
+    unscaled_observed_val = unscaled_y_train[0:100000]
+    unscaled_predicted_val = unscaled_predicted_train[0:100000]
+    unscaled_y_train = unscaled_y_train[100000:]
+    unscaled_predicted_train = unscaled_predicted_train[100000:]
+    print('validation loss:', mean_squared_error(unscaled_predicted_val, unscaled_observed_val))
+    print('test loss:', mean_squared_error(unscaled_predicted_test, unscaled_y_test))
+    print('train loss:', mean_squared_error(unscaled_predicted_train, unscaled_y_train))
+    print('loss of log values in test set:', mean_squared_error(log_un_predicted_test, log_un_y_test))
+    print('loss of log values in train set:', mean_squared_error(log_un_predicted_train, log_un_y_train))
     plt.figure(figsize=(5, 5))
     p1 = -2
     p2 = 2
     plt.plot([p1, p2], [p1, p2], 'w-')
     plt.hist2d(log_un_y_test,
-               log_un_predicted,
+               log_un_predicted_test,
                bins=[400, 400], cmap=plt.cm.nipy_spectral,
                norm=matplotlib.colors.LogNorm(
                 vmin=None, vmax=None, clip=False))
@@ -63,6 +97,50 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     plt.title('Predicted values with respect to the observed values for {}'.format(
         cell_line))
     plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
+                                   cell_line,
+                                   image_format),
+                dpi=300, bbox_inches='tight', transparent=False)
+    plt.close()
+
+def histogram_vs(preprocessing, cell_line, output_dir, image_format):
+
+    predicted_test_log_log = pd.read_csv(
+        'development/{}_predicted_test_log_to_log.csv'.format(
+            args.cell_line))['predictions'].to_numpy()
+    predicted_test_log_raw = pd.read_csv(
+        'development/{}_predicted_test_log_to_raw.csv'.format(
+            args.cell_line))['predictions'].to_numpy()
+
+    df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+    masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+    print('Number of NANs is {}'.format(masks['signal'].sum()))
+    df.loc[~masks['signal'].astype(bool)] = np.nan
+    df = df.dropna()
+    y_train = df['initiation'].to_numpy()
+    min_init_non_zero = np.min(y_train[np.nonzero(y_train)])
+    predicted_test_log_raw = np.log10(predicted_test_log_raw.ravel() + min_init_non_zero)
+    predicted_test_log_log = np.log10(predicted_test_log_log.ravel() + min_init_non_zero)
+    plt.figure(figsize=(6, 6))
+    p1 = -2
+    p2 = 2
+    plt.plot([p1, p2], [p1, p2], 'w-')
+    plt.hist2d(predicted_test_log_log,
+               predicted_test_log_raw,
+               bins=[400, 400], cmap=plt.cm.nipy_spectral,
+            
+            
+               norm=matplotlib.colors.LogNorm(
+                vmin=None, vmax=None, clip=False))
+
+    plt.xlim(-2, 2)
+    plt.ylim(-2, 2)
+    plt.clim(vmin=1, vmax=10**3)
+    plt.colorbar()
+    plt.xlabel('RF Log to raw: Log(predicted values + min(observed values))')
+    plt.ylabel('FCNN Log to raw: Log(predicted values + min(observed values))')
+    plt.title('Comparison of predicted values for two preprocessing methods for {}'.format(
+        cell_line))
+    plt.savefig('{}{}.{}'.format(output_dir,
                                    cell_line,
                                    image_format),
                 dpi=300, bbox_inches='tight', transparent=False)
@@ -744,3 +822,6 @@ if __name__ == '__main__':
     if args.method == 'evaluation hist2d':
         histogram(preprocessing=args.preprocessing, cell_line=args.cell_line,
                   output_dir=args.output_dir, image_format=args.image_format)
+    if args.method == 'hist2d vs':
+        histogram_vs(preprocessing=args.preprocessing, cell_line=args.cell_line,
+                     output_dir=args.output_dir, image_format=args.image_format)

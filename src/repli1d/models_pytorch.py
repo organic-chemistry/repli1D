@@ -1,6 +1,7 @@
 import argparse
 import copy
 import os
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,15 +20,12 @@ from torch import float32, optim
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
-
 torch.cuda.empty_cache()
-
 loss_func = F.mse_loss
-# loss_func = nn.BCELoss()
 
 
 class MLP(nn.Module):
-    # def __init__(self):
+    # Use relu for the last layer when the output is raw, otherwise just linear
     def __init__(self, units=100):
         super().__init__()
         self.lin1 = nn.Linear(11, units)
@@ -35,13 +33,95 @@ class MLP(nn.Module):
 
     def forward(self, xb):
         xb = F.relu(self.lin1(xb))
-        xb = F.relu(self.lin2(xb))
+        xb = self.lin2(xb)
         return xb
 
 
-def mlp():
-    model = MLP()
+class MLP_S(nn.Module):
+    # Use relu for the last layer when the output is raw, otherwise just linear
+    def __init__(self, units=100):
+        super().__init__()
+        self.lin1 = nn.Linear(11, units)
+        self.lin2 = nn.Linear(units, 1)
+
+    def forward(self, xb):
+        xb = F.relu(self.lin1(xb))
+        xb = torch.sigmoid(self.lin2(xb))
+        return xb
+
+
+def mlp(model=MLP()):
     return model, optim.Adam(model.parameters())
+
+
+class CNN_5_to_1(nn.Module):
+    # Use relu for the last layer when the output is raw, otherwise just linear
+    def __init__(self, kernel_size=3):
+        super().__init__()
+        self.conv1 = nn.Conv1d(11, 50, kernel_size)
+        self.conv2 = nn.Conv1d(50, 50, kernel_size)
+        self.flat = nn.Flatten()
+        self.lin1 = nn.Linear(50, 1)
+
+    def forward(self, xb):
+        xb = F.relu(self.conv1(xb))
+        xb = F.relu(self.conv2(xb))
+        xb = self.flat(xb)
+        xb = F.relu(self.lin1(xb))
+        return xb
+
+# class CNN_11_to_1(nn.Module):
+#     # Use relu for the last layer when the output is raw, otherwise just linear
+#     def __init__(self, kernel_size=3):
+#         super().__init__()
+#         self.conv1 = nn.Conv1d(11, 16, kernel_size)
+#         self.conv2 = nn.Conv1d(16, 32, kernel_size)
+#         self.conv3 = nn.Conv1d(32, 64, kernel_size)
+#         self.conv4 = nn.Conv1d(64, 128, kernel_size)
+#         self.conv5 = nn.Conv1d(128, 256, kernel_size)
+#         self.flat = nn.Flatten()
+#         self.lin1 = nn.Linear(256, 1)
+
+#     def forward(self, xb):
+#         xb = F.relu(self.conv1(xb))
+#         xb = F.relu(self.conv2(xb))
+#         xb = F.relu(self.conv3(xb))
+#         xb = F.relu(self.conv4(xb))
+#         xb = F.relu(self.conv5(xb))
+#         xb = self.flat(xb)
+#         xb = F.relu(self.lin1(xb))
+#         return xb
+
+
+class CNN_101_to_1(nn.Module):
+    # Use relu for the last layer when the output is raw, otherwise just linear
+    def __init__(self, kernel_size=3):
+        super().__init__()
+        self.conv1 = nn.Conv1d(11, 16, 5)
+        self.conv2 = nn.Conv1d(16, 32, kernel_size)
+        self.max1 = nn.MaxPool1d(kernel_size)
+        self.conv3 = nn.Conv1d(32, 64, kernel_size)
+        self.conv4 = nn.Conv1d(64, 128, kernel_size)
+        self.max2 = nn.MaxPool1d(kernel_size)
+        self.conv5 = nn.Conv1d(128, 256, kernel_size)
+        self.conv6 = nn.Conv1d(256, 512, kernel_size)
+        self.flat = nn.Flatten()
+        self.lin1 = nn.Linear(512*5, 50)
+        self.lin2 = nn.Linear(50, 1)
+
+    def forward(self, xb):
+        xb = F.relu(self.conv1(xb))
+        xb = F.relu(self.conv2(xb))
+        xb = F.relu(self.max1(xb))
+        xb = F.relu(self.conv3(xb))
+        xb = F.relu(self.conv4(xb))
+        xb = F.relu(self.max2(xb))
+        xb = F.relu(self.conv5(xb))
+        xb = F.relu(self.conv6(xb))
+        xb = self.flat(xb)
+        xb = F.relu(self.lin1(xb))
+        xb = F.relu(self.lin2(xb))
+        return xb
 
 
 def loss_batch(model, loss_func, xb, yb, opt=None):
@@ -58,7 +138,7 @@ def loss_batch(model, loss_func, xb, yb, opt=None):
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
     # Early stopping
     last_loss = 1000
-    patience = 5
+    patience = 3
     trigger_times = 0
     val_loss_list = []
     train_loss_list = []
@@ -104,7 +184,13 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
 
 def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
            preprocessing, output_dir, image_format, cell_line):
-
+    df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
+    masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
+    print('Number of NANs is {}'.format(masks['signal'].sum()))
+    df.loc[~masks['signal'].astype(bool)] = np.nan
+    df = df.dropna()
+    unscaled_y = df['initiation'].to_numpy()
+    min_init_non_zero = np.min(unscaled_y[np.nonzero(unscaled_y)])
     if preprocessing == 'log to raw' or preprocessing == 'raw to raw':
         unscaled_predicted = predicted
         unscaled_y_train = y_train
@@ -112,8 +198,8 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         unscaled_y_test = y_test
         print(mean_squared_error(predicted, y_train))
         print(mean_squared_error(predicted_test, y_test))
-        plt.scatter(np.log10(y_train.ravel() + 1), np.log10(predicted + 1),
-                    s=0.1)
+        plt.scatter(np.log10(y_train.ravel() + min_init_non_zero), np.log10(predicted +
+                    min_init_non_zero), s=0.1)
         plt.title('Predicted values with respect to the observed values')
         plt.ylabel('Predicted vlaues')
         plt.xlabel('Observed values')
@@ -128,17 +214,17 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.close()
         plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
-        plt.hist2d(np.log10(y_train.ravel() + 1), np.log10(predicted.ravel()
-                                                           + 1),
+        plt.hist2d(np.log10(y_train.ravel() + min_init_non_zero), np.log10(
+                   predicted.ravel() + min_init_non_zero),
                    bins=[300, 300], cmap=plt.cm.nipy_spectral,
                    norm=matplotlib.colors.LogNorm(vmin=None, vmax=None,
                                                   clip=False))
-        plt.xlim(0, 2)
-        plt.ylim(0, 2)
+        plt.xlim(-2, 2)
+        plt.ylim(-2, 2)
         plt.clim(vmin=10, vmax=10**3)
         plt.colorbar()
-        plt.xlabel('Log(observed values + 1)')
-        plt.ylabel('Log(predicted values + 1)')
+        plt.xlabel('Log(observed values + min(observed values))')
+        plt.ylabel('Log(predicted values + min(observed values))')
         plt.title('Predicted values with respect to the observed values for {}'.format(
             cell_line))
         plt.savefig('{}{}{}.{}'.format(output_dir, preprocessing,
@@ -152,7 +238,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.plot(y_train[0:50], '-o')
         plt.plot(predicted[0:50], '-o')
         plt.legend(['Observed', 'Predicted'], loc='upper right')
-        plt.title('Comparison of observed values and predicted values by FCNN')
+        plt.title('Comparison of observed values and predicted values by {}'.format(args.method))
         plt.savefig('{}{}{}comaprison_r_p.{}'.format(output_dir, preprocessing,
                                                      cell_line, image_format),
                     dpi=300, bbox_inches='tight', transparent=False)
@@ -207,7 +293,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.plot(y_train[0:50], '-o')
         plt.plot(predicted[0:50], '-o')
         plt.legend(['Observed', 'Predicted'], loc='upper right')
-        plt.title('Comparison of observed values and predicted values by FCNN')
+        plt.title('Comparison of observed values and predicted values by {}'.format(args.method))
         plt.savefig('{}{}{}comaprison_r_p.{}'.format(output_dir, preprocessing,
                                                      cell_line,
                                                      image_format),
@@ -218,7 +304,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                     dpi=300, bbox_inches='tight', transparent=False)
         plt.close()
 
-    if preprocessing == 'min max normalization':
+    if preprocessing == 'min max normalization' or preprocessing == 'log to min max by sigmoid and BCE':
         scale_denominator = (max_init - min_init)
         unscaled_predicted = predicted * scale_denominator + min_init
         unscaled_y_train = y_train * scale_denominator + min_init
@@ -239,13 +325,6 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.close()
         plt.figure(figsize=(5, 5))
         plt.plot([p1, p2], [p1, p2], 'w-')
-        df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
-        masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
-        print('Number of NANs is {}'.format(masks['signal'].sum()))
-        df.loc[~masks['signal'].astype(bool)] = np.nan
-        df = df.dropna()
-        unscaled_y = df['initiation'].to_numpy()
-        min_init_non_zero = np.min(unscaled_y[np.nonzero(unscaled_y)])
         plt.hist2d(np.log10(unscaled_y_train.ravel() + min_init_non_zero),
                    np.log10(unscaled_predicted.ravel() + min_init_non_zero),
                    bins=[300, 300], cmap=plt.cm.nipy_spectral,
@@ -267,7 +346,7 @@ def report(predicted, predicted_test, y_train, y_test, min_init, max_init,
         plt.plot(y_train[0:50], '-o')
         plt.plot(predicted[0:50], '-o')
         plt.legend(['Observed', 'Predicted'], loc='upper right')
-        plt.title('Comparison of observed values and predicted values by FCNN')
+        plt.title('Comparison of observed values and predicted values by {}'.format(args.method))
         plt.savefig('{}{}{}comaprison_r_p.{}'.format(output_dir, preprocessing,
                                                      cell_line,
                                                      image_format),
@@ -312,7 +391,7 @@ def interpret(model, X, y, predicted, output_dir, cell_line, marks,
         rows = np.append(rows, predicted[i])
     rows = np.array(rows)
     rows = np.reshape(rows, (-1, 13), order='C')
-    columns_attr = ['Attribution_H2A.Z', 'Attributions_H3K27ac', 
+    columns_attr = ['Attribution_H2A.Z', 'Attributions_H3K27ac',
                     'Attributions_H3K79me2', 'Attributions_H3K27me3',
                     'Attributions_H3K9ac', 'Attributions_H3K4me2',
                     'Attributions_H3K4me3', 'Attributions_H3K9me3',
@@ -337,7 +416,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--method', type=str, default='FCNN')
     parser.add_argument('--preprocessing', type=str, default='log to raw')
-    parser.add_argument('--max_epoch', type=int, default=300)
+    parser.add_argument('--max_epoch', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
@@ -370,6 +449,9 @@ if __name__ == '__main__':
 
     writer = SummaryWriter(args.output_dir)
     if args.method == 'FCNN':
+        model, opt = mlp()
+        model = nn.DataParallel(model)
+        model = model.to(device)
         if args.preprocessing == 'log to raw':
             for i in args.marks:
                 df[i] = df[i] + np.min(df[i][(df[i] != 0)])
@@ -388,6 +470,17 @@ if __name__ == '__main__':
             df['initiation'] = np.log10(df['initiation'])
         if args.preprocessing == 'raw to raw':
             pass
+        if args.preprocessing == 'log to min max by sigmoid and BCE':
+            for i in args.marks:
+                df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+                df[i] = np.log10(df[i])
+            df['initiation'] = (df['initiation'] - np.min(df['initiation'])) / (
+                np.max(df['initiation']) - np.min(df['initiation']))
+            model, opt = mlp(MLP_S())
+            model = nn.DataParallel(model)
+            model = model.to(device)
+            loss_func = nn.BCELoss()
+
         X_train = df.loc[df['chrom'] != 'chr1', args.marks].to_numpy()
         print(X_train.shape)
         y_train = df.loc[df['chrom'] != 'chr1', args.output].to_numpy()
@@ -401,13 +494,14 @@ if __name__ == '__main__':
         X_train = torch.tensor(X_train[100000:], dtype=float32).to(device)
         X_test = torch.tensor(X_test, dtype=float32).to(device)
         y_train = torch.tensor(y_train[100000:], dtype=float32).to(device)
+        X_train = X_train.transpose(1, 2).contiguous()
+        X_test = X_test.transpose(1, 2).contiguous()
+        X_val = X_val.transpose(1, 2).contiguous()
         train_ds = TensorDataset(X_train, y_train)
         train_dl = DataLoader(train_ds, batch_size=args.batch_size)
         valid_ds = TensorDataset(X_val, y_val)
         valid_dl = DataLoader(valid_ds, batch_size=args.batch_size)
-        model, opt = mlp()
-        model = nn.DataParallel(model)
-        model = model.to(device)
+
         # Print model's state_dict
         print("Model's state_dict:")
         for param_tensor in model.state_dict():
@@ -448,6 +542,18 @@ if __name__ == '__main__':
         p1 = -2
         p2 = 2
         predicted1 = model(X).cpu().detach().numpy()
+        if args.preprocessing == 'min max normalization':
+            predicted1 = predicted1 * (np.max(df['initiation']) - np.min(
+                                       df['initiation'])) + np.min(
+                                       df['initiation'])
+            df['initiation'] = df['initiation'] * (np.max(
+                               df['initiation']) - np.min(
+                               df['initiation'])) + np.min(df['initiation'])
+        if args.preprocessing == 'raw to log' or args.preprocessing == 'log to log':
+            predicted1 = 10**predicted1
+            df['initiation'] = 10**df['initiation']
+        if args.preprocessing == 'raw to raw' or args.preprocessing == 'log to raw':
+            pass
         df['predicted'] = predicted1
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
@@ -502,6 +608,8 @@ if __name__ == '__main__':
         X_test = df.loc[df['chrom'] == 'chr1', args.marks].to_numpy()
         y_test = df.loc[df['chrom'] == 'chr1', args.output].to_numpy()
         X_train, y_train = shuffle(X_train, y_train, random_state=42)
+        X_test = torch.tensor(X_test, dtype=float32)
+        y_test = torch.tensor(y_test, dtype=float32)
         X_val = torch.tensor(X_train[0:100000], dtype=float32)
         y_val = torch.tensor(y_train[0:100000], dtype=float32)
         X_train = torch.tensor(X_train[100000:], dtype=float32)
@@ -525,8 +633,8 @@ if __name__ == '__main__':
             criterion = nn.MSELoss()
             # optimizer = optim.SGD(net.parameters(), lr=config["lr"], momentum=0.9)
             # optimizer = optim.Adam(net.parameters(), lr=config["lr"])
-            # optimizer = optim.Adam(net.parameters())
-            optimizer = optim.Adam()
+            optimizer = optim.Adam(net.parameters())
+            # optimizer = optim.Adam()
 
             if checkpoint_dir:
                 model_state, optimizer_state = torch.load(
@@ -588,9 +696,9 @@ if __name__ == '__main__':
 
         def test_loss(net, device="cpu"):
             with torch.no_grad():
-                outputs = net(X_val)
+                outputs = net(X_test)
                 outputs = outputs.cpu().numpy()
-            return mean_squared_error(outputs, y_val.cpu().numpy())
+            return mean_squared_error(outputs, y_test.cpu().numpy())
 
         # def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         #     config = {
@@ -610,7 +718,7 @@ if __name__ == '__main__':
                 metric="loss",
                 mode="min",
                 max_t=max_num_epochs,
-                grace_period=1,
+                grace_period=30,
                 reduction_factor=2)
             reporter = CLIReporter(
                 # parameter_columns=["l1", "l2", "lr", "batch_size"],
@@ -647,4 +755,129 @@ if __name__ == '__main__':
             test_acc = test_loss(best_trained_model, device)
             print("Best trial test set loss: {}".format(test_acc))
 
-        main1(num_samples=20, max_num_epochs=160, gpus_per_trial=4)
+        main1(num_samples=20, max_num_epochs=300, gpus_per_trial=2)
+    if args.method == 'CNN':
+        if args.preprocessing == 'log to raw':
+            for i in args.marks:
+                df[i] = df[i] + np.min(df[i][(df[i] != 0)])
+                df[i] = np.log10(df[i])
+        window_size = 101
+        # window_size = 5
+        X_train = np.array([]).reshape(0, 1, window_size, 11)
+        y_train = np.array([])
+        for i in df.chrom.unique():
+            if i == 'chr1':
+                X_test = df.loc[df['chrom'] == i, args.marks].to_numpy()
+                X_test = np.lib.stride_tricks.sliding_window_view(X_test, (
+                    window_size, 11))
+                y_test = df.loc[df['chrom'] == i, 'initiation'][int(((
+                    window_size - 1) / 2)): int(-1 * (((
+                        window_size - 1) / 2)))]
+            else:
+                a = df.loc[df['chrom'] == i, args.marks].to_numpy()
+                a = np.lib.stride_tricks.sliding_window_view(a, (
+                        window_size, 11))
+                X_train = np.concatenate((X_train, a))
+                b = df.loc[df['chrom'] == i, 'initiation'][int(((
+                    window_size - 1) / 2)): int(-1 * (((
+                        window_size - 1) / 2)))]
+                y_train = np.concatenate((y_train, b))
+        X_test = X_test.reshape(-1, window_size, 11).transpose((0, 2, 1))
+        X_train = X_train.reshape(-1, window_size, 11).transpose((0, 2, 1))
+        X_train, y_train = shuffle(X_train, y_train, random_state=42)
+        y_train = y_train.reshape(-1, 1)
+        y_test = np.array(y_test).reshape(-1, 1)
+        X_val = torch.tensor(X_train[0:100000], dtype=float32).to(device)
+        y_val = torch.tensor(y_train[0:100000], dtype=float32).to(device)
+        X_train = torch.tensor(X_train[100000:], dtype=float32).to(device)
+        X_test = torch.tensor(X_test, dtype=float32).to(device)
+        y_train = torch.tensor(y_train[100000:], dtype=float32).to(device)
+        train_ds = TensorDataset(X_train, y_train)
+        train_dl = DataLoader(train_ds, batch_size=args.batch_size)
+        valid_ds = TensorDataset(X_val, y_val)
+        valid_dl = DataLoader(valid_ds, batch_size=args.batch_size)
+        X_val = None
+        y_val = None
+        model = CNN_101_to_1(kernel_size=3)
+        # model = CNN_5_to_1(kernel_size=3)
+        model = nn.DataParallel(model)
+        model = model.to(device)
+        opt = optim.Adam(model.parameters())
+        loss_func = F.mse_loss
+        model.eval()
+        # torch.manual_seed(123)
+        # np.random.seed(123)
+        model, val_loss_list, train_loss_list = fit(args.max_epoch, model,
+                                                    loss_func, opt, train_dl,
+                                                    valid_dl)
+        torch.save(model.state_dict(), '{}{}'.format(
+            args.output_dir, 'model_weights.pth'))
+        plt.plot(train_loss_list)
+        plt.plot(val_loss_list)
+        plt.title('Loss during training')
+        plt.ylabel('Mean Squared Error')
+        plt.xlabel('Epochs')
+        plt.scatter(np.argmin(val_loss_list),
+                    np.min(val_loss_list), facecolors='none',
+                    edgecolors='chocolate', s=50)
+        plt.legend(['training', 'validation'], loc='upper right')
+        plt.savefig('{}loss.{}'.format(args.output_dir, args.image_format),
+                    dpi=300, bbox_inches='tight')
+        plt.close()
+        y = np.array([]).reshape(0, 1)
+        predicted = np.array([]).reshape(0, 1)
+        for i in df.chrom.unique():
+            X_temp = None
+            X_temp = df.loc[df['chrom'] == i, args.marks].to_numpy()
+            X_temp = np.lib.stride_tricks.sliding_window_view(X_temp, (
+                window_size, 11))
+            X_temp = X_temp.reshape(-1, window_size, 11).transpose((0, 2, 1))
+            X_temp = torch.tensor(X_temp, dtype=float32).to(device)
+            with torch.no_grad():
+                y_temp = model(X_temp).cpu().detach().numpy()
+            pad = int((window_size - 1)/2)
+            y_temp = np.pad(y_temp, ((pad, pad), (0, 0)), 'constant')
+            y = np.concatenate((y, y_temp))
+        with torch.no_grad():
+            predicted_test = model(X_test).cpu().detach().numpy()
+        # predicted_test = np.pad(predicted_test, ((pad, pad), (0, 0)), 'constant')
+        y_train = y_train.cpu().detach().numpy()
+        with torch.no_grad():
+            predicted = model(X_train).cpu().detach().numpy()
+        # p1 = max(max(predicted), max(y_train))
+        # p2 = min(min(predicted), min(y_train))
+        p1 = -2
+        p2 = 2
+        predicted1 = y
+        if args.preprocessing == 'min max normalization':
+            predicted1 = predicted1 * (np.max(df['initiation']) - np.min(
+                                       df['initiation'])) + np.min(
+                                       df['initiation'])
+            df['initiation'] = df['initiation'] * (np.max(
+                               df['initiation']) - np.min(
+                               df['initiation'])) + np.min(
+                               df['initiation'])
+        if args.preprocessing == 'raw to log' or args.preprocessing == 'log to log':
+            predicted1 = 10**predicted1
+            df['initiation'] = 10**df['initiation']
+        if args.preprocessing == 'raw to raw' or args.preprocessing == 'log to raw':
+            pass
+        df['predicted'] = predicted1
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
+                      y=list(df.loc[df['chrom'] == 'chr1', 'initiation']),
+                      name='PODLS'))
+        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
+                      y=list(df.loc[df['chrom'] == 'chr1', 'predicted']),
+                      name='Predictions from CNN'))
+        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
+                      y=list(np.abs(df.loc[df['chrom'] == 'chr1', 'predicted'
+                                           ].to_numpy() - df.loc[
+                                            df['chrom'] == 'chr1',
+                                            'initiation'].to_numpy())),
+                                            name='Absolute error'))
+        fig.write_html("development/profile.html")
+        plt.plot([p1, p2], [p1, p2], '-', color='orange')
+        report(predicted, predicted_test, y_train, y_test, min_init, max_init,
+               preprocessing=args.preprocessing, output_dir=args.output_dir,
+               image_format=args.image_format, cell_line=args.cell_line)
