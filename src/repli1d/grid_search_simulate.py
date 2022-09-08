@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--start', type=int, default=5000)
 parser.add_argument('--end', type=int, default=120000)
 parser.add_argument('--ch', type=int, default=1)
+parser.add_argument('--n_jobs', type=int, default=8)
 parser.add_argument('--ndiff', type=int, default=60)
 parser.add_argument('--cell', type=str, default="K562")
 parser.add_argument('--root', type=str, default="./")
@@ -49,6 +50,8 @@ kon = 0.005
 nsim = args.nsim
 compMRT = cell
 compRFD = cell
+n_jobs = args.n_jobs
+print(n_jobs)
 if args.compMRT is not None:
     compMRT = args.compMRT
 if args.compRFD is not None:
@@ -164,19 +167,19 @@ for mark,correct,save,single,check_if_exist,rename_root in marks:
         lp=[]
 
         if "K562" in mark:
-            lp0=np.array([1e-6,0.55,0,15,1.5])
+            lp0=np.array([3e-6,0.52,0,20,1.5])
             params=[[1,np.arange(0.25,2.5,0.1)],
                     [2,np.arange(0,0.3,0.05)],
                     [3,[1,5,10,15,20,30,40,50,75,100]],
                     [4,np.arange(0.5,5.1,0.5)]]
         if "Hela" in mark:
-            lp0=np.array([1e-6,0.82,0,15,1.5])
+            lp0=np.array([3e-6,1.03,0,20,1.5])
             params=[[1,np.arange(0.32,2.5,0.1)],
                     [2,np.arange(0,0.3,0.05)],
                     [3,[1,5,10,15,20,30,40,50,75,100]],
                     [4,np.arange(0.5,5.1,0.5)]]
         if "GM" in mark:
-            lp0=np.array([1e-6,0.45,0,15,1.5])
+            lp0=np.array([3e-6,0.56,0,20,1.5])
             params=[[1,np.arange(0.25,2.5,0.1)],
                     [2,np.arange(0,0.3,0.05)],
                     [3,[1,5,10,15,20,30,40,50,75,100]],
@@ -229,12 +232,13 @@ for mark,correct,save,single,check_if_exist,rename_root in marks:
                 add += " --save "
             if single:
                 add += " --single "
+            print(n_jobs)
             bgcmd = ("python src/repli1d/detect_and_simulate.py --input --visu "
                         "--signal %s --ndiff %.3f --dori %i --ch 1 "
                         "--name %s/ --resolution 5 --resolutionpol 5"
                         " --nsim 200  --wholecell --kon %.3e  --cutholes 1500"
-                        " --experimental --n_jobs 8 --noise %.2f --only_one --introduction_time 60 "
-                        " --fspeed %.1f " % (mark, ndiff, dori,filename, kon,random_activation,fork_speed))
+                        " --experimental --n_jobs %i --noise %.2f --only_one --introduction_time 60 "
+                        " --fspeed %.1f " % (mark, ndiff, dori,filename, kon,n_jobs,random_activation,fork_speed))
             bgcmd += add
             if cell in ["HeLaS3","Hela","K562","GM","Raji"]:
                 csa=cell

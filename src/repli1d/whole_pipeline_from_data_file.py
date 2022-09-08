@@ -54,6 +54,8 @@ parser.add_argument('--save', action="store_true",help="Save individual MRTs and
 parser.add_argument('--pearson', action="store_true",help="Perform the grid search optimisation on sum of pearson correlation (otherwise on absolute error)")
 parser.add_argument('--max_factor_reptime', type=float,default=1.41)
 parser.add_argument('--on_input_signal', type=str,default=None)
+parser.add_argument('--sm', type=int,default=10,help="Smoothing of the signal before predicting using nn")
+parser.add_argument('--no_randval',dest="randval", action="store_false")
 
 
 args = parser.parse_args()
@@ -72,9 +74,9 @@ if args.test:
     nsim=50
     fexplo = np.arange(.8,1.21,0.2)
 else:
-    max_epoch=150
+    max_epoch=args.max_epoch
     nsim=args.nsim
-    delta=(args.max_factor_reptime-0.61)/4
+    delta=(args.max_factor_reptime-0.61)/8
     fexplo = np.arange(.6,args.max_factor_reptime,delta)
 
 
@@ -111,7 +113,7 @@ small_sub += f"--introduction_time {args.introduction_time} --dori {args.dori}"
 
 
 
-kon = 8.625 / (len(data) * args.resolution ) / 3
+kon = 8.625 / (len(data) * args.resolution ) / 3  * 3
 print(f"Using kon = {kon}")
 
 standard_parameters = small_sub + f"  --wholecell --kon {kon} --noise 0.0 --nsim {nsim} "
@@ -137,8 +139,10 @@ for loop in range(nloop):
         extra_nn = ""
         if args.reduce_lr:
             extra_nn = " --reduce_lr "
+        if args.randval:
+            extra_nn += " --random_val"
         directory_nn = args.root+f"/RFD_to_init_nn_{loop}/"
-        cmd += [[f"python src/repli1d/nn.py {extra_nn} --max_epoch {max_epoch} --add_noise --nfilters {args.nfilters} --listfile {directory}/global_profiles.csv --datafile --marks RFDs MRTs --root {directory_nn} --sm 10  --noenrichment --window {window} --max_epoch {args.max_epoch}",
+        cmd += [[f"python src/repli1d/nn.py {extra_nn} --max_epoch {max_epoch} --add_noise --nfilters {args.nfilters} --listfile {directory}/global_profiles.csv --datafile --marks RFDs MRTs --root {directory_nn} --sm {args.sm}  --noenrichment --window {window}",
                  ""]]
     #print(sum(data.chr==args.chr_sub)*args.resolution/1000)
     megabase_sub= sum(data.chrom==args.chr_sub)*args.resolution/1000

@@ -228,6 +228,7 @@ dir = os.path.split(args.name)[0]
 if dir != '':
     os.makedirs(dir, exist_ok=True)
 
+print("List_task",list_task)
 for start, end, ch, ndiff in list_task:
 
     name_w = args.name+"_%s_%i_%i" % (str(ch), start, end)
@@ -370,6 +371,8 @@ for start, end, ch, ndiff in list_task:
         cellt=cell
         if args.datafile != None:
             cellt="None"
+
+        print("LA")
         x, d3p = replication_data(cellt, args.signal, chromosome=ch,
                                   start=start, end=end,
                                   resolution=resolution, raw=False, smoothf=args.smoothw)
@@ -378,6 +381,9 @@ for start, end, ch, ndiff in list_task:
         #print("D3psize",d3p)
         #pylab.figure()
         #pylab.plot(x,d3p)
+        #print("laaa")
+        #exit()
+        print(d3p)
         #pylab.savefig("tmp.pdf")
         if args.correct:
 
@@ -388,12 +394,14 @@ for start, end, ch, ndiff in list_task:
             d3p /= CNV
         d3p[np.isnan(d3p)] = 0
 
+    print("Warning change")
+    """
     d3p /= np.mean(d3p[d3p != 0])
     std = np.std(d3p[d3p != 0])
     if std == 0:
         std = 1
     d3p = norm2(d3p, mean=1, std=std, cut=15)[0]
-
+    """
 
     if args.expbg:
         _, mrt_tmp = replication_data(cell, "MRT", chromosome=ch,
@@ -526,7 +534,7 @@ for start, end, ch, ndiff in list_task:
     #d3p=d3p**3
     d3pl.append([x, d3p,stallp])
 
-print(d3pl[0][1][:100],np.sum(np.isnan(d3pl[0][1])))
+#print(d3pl[0][1][:100],np.sum(np.isnan(d3pl[0][1])))
 propagateNan=False
 mrt_res=args.mrt_res
 
@@ -625,6 +633,7 @@ else:
 
 
         breaks = []
+        split_ch = []
         shift = 0
         tot_diff = 0
         bigmask = np.ones_like(bigch)
@@ -770,6 +779,7 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     if args.save and ch==list_task[0][2]:
         with open(args.name+"alldat.pick", "wb") as f:
             #pickle.dump([MRTp, MRTs, RFDs, Rept_time, single_mol_exp, Time, It], f)
+
             pickle.dump([ Rept_time, Time, It,Free,Nfork,pos_time_activated_ori,MRTsingle,split_ch], f)
 
 

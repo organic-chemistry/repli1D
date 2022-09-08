@@ -540,18 +540,22 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
              pulse_size=2,cascade={},breaks=None,continuous=False,
              binsize=5,dori=30,list_chrom_ret=False,timespend=[],
              filter_termination=None,introduction_time=None,
-             correct_activation=True,dario=False):
+             correct_activation=True,dario=False,start0=False):
 
     #np.random.seed(0)
     pos = np.arange(len(distrib))
+    #print(fork_speed(0))
+    #exit()
 
     if not continuous:
+        #print("Nan",sum(np.isnan(distrib)),np.sum(distrib))
+
         init_ori = np.random.choice(pos, p=distrib/np.sum(distrib), size=int(len(distrib)*binsize/dori))
         init_distrib = np.zeros_like(distrib)
         # print(l)
         for p in init_ori:
             init_distrib[p] += 1
-        #print(sum(init_distrib))
+        #print("mean Nori",np.mean(init_distrib))
     else:
         init_distrib = distrib / np.sum(distrib)
 
@@ -559,6 +563,8 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
         init_distrib = distrib
         #   print(sum(init_distrib))
 
+    #print("Kon",kon,fork_speed(0))
+    #exit()
 
     d3p= init_distrib
 
@@ -604,13 +610,21 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
     #pos, proba, newp, finished = generate_newp(pos, proba, 1,actual_pos=[],cascade=cascade)
     #print("Before",avail)
-    pos, proba, newp, finished,previous = generate_newp_no_corre(pos, proba, avail,
-                                                                 actual_pos=actual_pos,cascade=cascade,
-                                                                 previous =[])
-    tot_introduced=avail
-    nfork = [[avail,0]]
+    if not start0:
+        pos, proba, newp, finished,previous = generate_newp_no_corre(pos, proba, avail,
+                                                                     actual_pos=actual_pos,cascade=cascade,
+                                                                     previous =[])
+        tot_introduced=avail
+        nfork = [[avail,0]]
 
-    avail = 0
+        avail = 0
+    else:
+        newp=[]
+        tot_introduced = 0
+        nfork=[[0,0]]
+        avail=diff
+        previous=[]
+        #print(avail)
     position_time_activated_ori = []
     terminations = []
 
@@ -647,6 +661,8 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
     introduced=False
     #print("There")
     while (sum( [len(chrom.actual_pos) for chrom in list_chrom]) != 0) or np.any(proba!=0) :
+        #print(avail)
+        #print("Prob",np.sum(proba))
         if avail > diff:
             print(avail,diff,time)
 
@@ -685,11 +701,15 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
             def add_attach_nothing(attached=0,add=0,tot_introduced=0):
 
-                nori = np.sum(proba != 0)
+                nori = np.sum(proba!=0)-attached
+                #print(nori)
+                if (nori > 0) and avail - attached + add != 0:
 
-                if nori != 0 and avail - attached + add != 0:
-
+                    #Here approximation
+                    nori = np.sum(proba) - attached
                     k_attach = nori * (avail-attached+add) * kon  # minutes
+                    #print(nori,time,avail,attached,add,avail-attached+add,1/k_attach)
+
                 else:
                     # print("1001",nori,avail)
                     k_attach = 0
@@ -716,25 +736,37 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
             add = 0
             next_collide_time = next_e / fork_speed(time)
             passed_time = 0
-
+            #next_e in bin
+            #status in time
+            #fork_speed in kb/min / bin
+            iiii=0
             while True:
                 status = add_attach_nothing(attached=attached,add=add,
                                             tot_introduced=tot_introduced)
+                #if status[0]
+                #print(status[2],iiii)
                 #print(status)
-                if continuous_time + passed_time + status[2] * fork_speed(time) > time+ next_e:
+                #print("Nex",next_e,status)
+                if continuous_time + passed_time + status[2] * fork_speed(time)  > time + next_e:
+                    #Move forks
+                    if status[0]==0 and status[1]==0:
+                        if iiii !=0:
+                            #Event faster than one bin
+                            next_e=1
                     time_evolve = next_e
                     continuous_time = time + time_evolve
-                    #print("Event")
+                    #print("Event",time_evolve)
                     break
+                iiii+=1
                 attached += status[0]
                 add += status[1]
                 passed_time += status[2] * fork_speed(time)
                 tot_introduced += status[1]
-
+                #print(passed_time)
                 if continuous_time + passed_time > time + 1:
                     #print("Plusone" )
-                    time_evolve = int(continuous_time - time)
                     continuous_time += passed_time
+                    time_evolve = int(continuous_time - time)
                     break
 
                 if tot_introduced == diff:
@@ -799,7 +831,6 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                 #print("Reac",time_evolve,next_e)
                 # print(next_attach_time)
 
-
         #print("time %.2f , %i avail %i nori, %.3f conti time , %i n intro , %i find target %i release "%(time,avail,np.sum(proba!=0),continuous_time,tot_introduced,find_target,release))
 
         """
@@ -813,6 +844,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
 
         # print(collide,find_target)
         # print(next_attach_time,next_collide_time,avail,nori)
+        #print("TE",time_evolve)
         # print(next_e[0][0])
         if time_evolve > next_e:
             print(time_evolve,next_e,continuous_time,time)
@@ -907,6 +939,7 @@ def fast_rep(distrib, diff, debug=False, kon=0.001, fork_speed=0.3,
                 print(p1, p2)
                 raise
 
+    #print("Nori activated",len(position_time_activated_ori))
     if list_chrom_ret :
 
         return MRT(), RFD(), time, single_mol_exp_v, position_time_activated_ori,terminations , list_chrom
@@ -923,7 +956,8 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                       binsize=5,continuous=False,wholeRFD=False,cascade={},breaks=None,
                       n_jobs=6,timespend=[],nMRT=6,filter_termination=None,
                       introduction_time=None,
-                      wholeMRT=False,return_dict=False,correct_activation=False,dario=False,mask=[],early_over_late=False):
+                      wholeMRT=False,return_dict=False,
+                      correct_activation=False,dario=False,mask=[],early_over_late=False,start0=False):
 
 
     if not cascade:
@@ -951,6 +985,12 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
         fork_speed = lambda x:fs
         fork_speed_ct = True
 
+    if sum(distrib) == 0:
+        print("Empty origin set")
+        raise
+    #print("Nan",sum(np.isnan(distrib)))
+
+
     from joblib import Parallel, delayed
     if n_jobs != 1:
         res = Parallel(n_jobs=n_jobs)(delayed(fast_rep)(distrib, ndiff, kon=kon, debug=False,
@@ -959,14 +999,14 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
                             continuous=continuous,binsize=binsize,dori=dori,timespend=timespend,
                             filter_termination=filter_termination,
                             introduction_time=introduction_time,
-                            correct_activation=correct_activation,dario=dario) for _ in range(nsim))
+                            correct_activation=correct_activation,dario=dario,start0=start0) for _ in range(nsim))
     else:
         res = [ fast_rep(distrib, ndiff, kon=kon, debug=False,
                             fork_speed=fork_speed, single_mol_exp=single_mol_exp,
                             pulse_size=pulse_size,cascade=cascade,breaks=breaks,
                             continuous=continuous,binsize=binsize,dori=dori,timespend=timespend,
                             filter_termination=filter_termination,introduction_time=introduction_time,
-                            correct_activation=correct_activation,dario=dario) for _ in range(nsim)]
+                            correct_activation=correct_activation,dario=dario,start0=start0) for _ in range(nsim)]
 
     for MRT, RFD, time, single_mol_exp_v, position_time_activated_ori,termination,totn,sAvails,sNoris,sForks in res:
         MRTs.append(MRT)
@@ -1090,30 +1130,36 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
     if early_over_late:
         nMRT=2
 
-    n = nMRT
-    dp = np.array(np.arange(0, 1+1/(2*n), 1/n)*100, dtype=np.int)
-    MRTp = np.zeros_like(MRTs[0])
-    MRTpstd = np.zeros((len(MRTs[0]),nMRT))
+    def compute_mrt(MRTs,nMRT=6,early_over_late=False):
+        n = nMRT
+        nsim = len(MRTs)
+        dp = np.array(np.arange(0, 1+1/(2*n), 1/n)*100, dtype=np.int)
+        MRTp = np.zeros_like(MRTs[0])
+        MRTpstd = np.zeros((len(MRTs[0]),nMRT))
 
 
 
-    for MRT in MRTs:
-        if np.any(np.isnan(MRT)):
-            MRT[np.isnan(MRT)]=np.nanmax(MRT)
-        percentils = np.percentile(MRT, dp)
-        for ip, (p1, p2) in enumerate(zip(percentils[:-1], percentils[1:]), 1):
-            MRTp[(MRT > p1) & (MRT <= p2)] += ip/n
-            MRTpstd[(MRT > p1) & (MRT <= p2),ip-1] += 1
-        MRTp[MRT == 0] += 1/n
-        MRTpstd[MRT == 0,0] += 1
+        for MRT in MRTs:
+            if np.any(np.isnan(MRT)):
+                MRT[np.isnan(MRT)]=np.nanmax(MRT)
+            percentils = np.percentile(MRT, dp)
+            for ip, (p1, p2) in enumerate(zip(percentils[:-1], percentils[1:]), 1):
+                MRTp[(MRT > p1) & (MRT <= p2)] += ip/n
+                MRTpstd[(MRT > p1) & (MRT <= p2),ip-1] += 1
+            MRTp[MRT == 0] += 1/n
+            MRTpstd[MRT == 0,0] += 1
 
-    #MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
-    MRT_normed = MRTp/nsim - 1/(2*n)
-    MRTpstd = MRTpstd / nsim
+        #MRT_normed = MRTp / nsim * n / (n - 1) - 1 / (n - 1)
+        MRT_normed = MRTp/nsim - 1/(2*n)
+        MRTpstd = MRTpstd / nsim
 
-    if early_over_late:
-        MRT_normed = MRTpstd[::,0]/(MRTpstd[::,1])
-        MRT_normed[MRTpstd[::,1]==0]=np.nan
+        if early_over_late:
+            MRT_normed = MRTpstd[::,0]/(MRTpstd[::,1])
+            MRT_normed[MRTpstd[::,1]==0]=np.nan
+        return MRT_normed,MRTpstd
+
+    MRT_normed,MRTpstd = compute_mrt(MRTs,nMRT,early_over_late)
+
         #MRT_normed /= np.max(MRT_normed)
     #print(np.sum(MRTpstd,axis=1))
 

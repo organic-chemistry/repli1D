@@ -305,7 +305,7 @@ def load_signal(name,
         if t in ["initiation", "Stall"]:
             max_outputs.append(np.max(y))
             min_outputs.append(np.min(y))
-            trunc = (y - np.min(y)) / (np.max(y)-np.min(y))  # np.percentile(y,99)
+            trunc = y / np.max(y)  # np.percentile(y,99)
             # trunc[trunc>1] = 1
             result = pd.DataFrame((min_outputs, max_outputs), index=['minimum',
                                                                      'maximum'])
@@ -571,6 +571,7 @@ if __name__ == "__main__":
     parser.add_argument('--add_noise', action="store_true")
     parser.add_argument('--filter_anomaly', action="store_true")
     parser.add_argument('--generator', action="store_true")
+    parser.add_argument('--random_val', action="store_true")
 
 
     args = parser.parse_args()
@@ -649,8 +650,10 @@ if __name__ == "__main__":
                 traint = list(chs)
                 tests = ["chr1"]
                 valt = ["chr2"]
-                traint.remove(tests[0])
-                traint.remove(valt[0])
+                if not args.random_val:
+                    traint.remove(valt[0])
+                    traint.remove(tests[0])
+
 
                 # traint.pop(0)
 
@@ -664,7 +667,9 @@ if __name__ == "__main__":
 
             if not args.generator:
                 vtrain = transform_seq(X_train_us, y_train_us, mask_borders, 1, window)
+
                 vval = transform_seq(X_val_us, y_val_us, mask_borders, 1, window)
+
                 del X_train_us, X_val_us, y_train_us, y_val_us
                 if X_train == []:
                     X_train, y_train = vtrain
@@ -677,6 +682,7 @@ if __name__ == "__main__":
             else:
                 x = split(df,mask_borders)
                 y = split(yinit,mask_borders)
+                #print(traint)
                 assert(len(x)==(len(traint)+len(tests)+len(valt)))
 
 
@@ -803,8 +809,12 @@ if __name__ == "__main__":
                                         patience=3, min_lr=0.0001)]
 
             if not args.generator:
-                validation_data = (X_val, y_val)
-                validation_split = 0.
+                if args.random_val:
+                    validation_data = ()
+                    validation_split = 0.1
+                else:
+                    validation_data = (X_val, y_val)
+                    validation_split = 0.
                 history_multi_filter = multi_layer_keras_model.fit(x=X_train[sel],
                                                                    y=y_train[sel],
                                                                    batch_size=args.batch_size,
@@ -909,6 +919,11 @@ if __name__ == "__main__":
             y = split(yinit,mask_borders)
             final = []
             for ch,yt in zip(x,y):
+                ch=np.array(ch)
+                print(ch.shape)
+                start = np.repeat(np.array(ch[0])[np.newaxis,:],window//2,axis=0)
+                end = np.repeat(np.array(ch[-1])[np.newaxis,:],window//2,axis=0)
+                ch = np.concatenate([start,ch,end],axis=0)
                 pred = generator([ch],[yt],  window,1,args.batch_size,random=False,drop_remainder=False)
                 steps = len(compute_all_possible_batches([ch],window,1,args.batch_size,drop_remainder=False)[1])
 
@@ -919,7 +934,7 @@ if __name__ == "__main__":
             #del df, X, y
             #print(res.shape, "resshape", yinit.shape)
             for itarget, target in enumerate(args.targets):
-                XC["signalValue"] = np.concatenate([repad1d(res[::, itarget], window) for res in final])
+                XC["signalValue"] = np.concatenate([res[::, itarget] for res in final])
                 if target == "OKSeq":
                     XC["signalValue"] = XC["signalValue"] * 2-1
             # XC.to_csv("nn_hela_fk.csv",index=False,sep="\t")
