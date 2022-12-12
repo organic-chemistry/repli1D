@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV
@@ -29,6 +30,13 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
     predicted_train = pd.read_csv(
         'development/{}_predicted_train.csv'.format(
             args.cell_line))['predictions'].to_numpy()
+    # df_ch = pd.read_csv(
+    #     'development/{}_df_predicted.csv'.format(
+    #         args.cell_line))
+    # chr2_observed = df_ch.loc[df_ch['chrom'] == 'chr2', 'initiation'].to_numpy()
+    # chr2_predicted = df_ch.loc[df_ch['chrom'] == 'chr2', 'predicted'].to_numpy()
+    # print(chr2_observed.shape)
+    # print(chr2_predicted.shape)
     observed_train, predicted_train = shuffle(observed_train, predicted_train, random_state=42)
     df = pd.read_csv('{}'.format(args.listfile), compression='gzip')
     masks = pd.read_csv('data/hg19_2000_no_N_inside.csv')
@@ -71,13 +79,15 @@ def histogram(preprocessing, cell_line, output_dir, image_format):
         log_un_predicted_train = predicted_train
     unscaled_observed_val = unscaled_y_train[0:100000]
     unscaled_predicted_val = unscaled_predicted_train[0:100000]
-    unscaled_y_train = unscaled_y_train[100000:]
-    unscaled_predicted_train = unscaled_predicted_train[100000:]
+    unscaled_y_train = unscaled_y_train[200000:]
+    unscaled_predicted_train = unscaled_predicted_train[200000:]
     print('validation loss:', mean_squared_error(unscaled_predicted_val, unscaled_observed_val))
     print('test loss:', mean_squared_error(unscaled_predicted_test, unscaled_y_test))
+    # print('chromosome 2 loss:', mean_squared_error(chr2_observed, chr2_predicted))
     print('train loss:', mean_squared_error(unscaled_predicted_train, unscaled_y_train))
     print('loss of log values in test set:', mean_squared_error(log_un_predicted_test, log_un_y_test))
     print('loss of log values in train set:', mean_squared_error(log_un_predicted_train, log_un_y_train))
+    print('correlation:', np.corrcoef(log_un_predicted_test, log_un_y_test))
     plt.figure(figsize=(5, 5))
     p1 = -2
     p2 = 2
@@ -825,3 +835,20 @@ if __name__ == '__main__':
     if args.method == 'hist2d vs':
         histogram_vs(preprocessing=args.preprocessing, cell_line=args.cell_line,
                      output_dir=args.output_dir, image_format=args.image_format)
+    if args.method == 'profiles for each chromosome':
+        df = pd.read_csv("development/K562_df_predicted.csv")
+        for ch in df.chrom.unique():
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+                        y=list(df.loc[df['chrom'] == ch, 'initiation']),
+                        name='PODLS'))
+            fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+                        y=list(df.loc[df['chrom'] == ch, 'predicted']),
+                        name='Predictions from CNN'))
+            fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+                        y=list(np.abs(df.loc[df['chrom'] == ch, 'predicted'
+                                            ].to_numpy() - df.loc[
+                                                df['chrom'] == ch,
+                                                'initiation'].to_numpy())),
+                                                name='Absolute error'))
+            fig.write_html("development/profile_{}.html".format(ch))         

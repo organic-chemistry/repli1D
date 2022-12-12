@@ -416,7 +416,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--method', type=str, default='FCNN')
     parser.add_argument('--preprocessing', type=str, default='log to raw')
-    parser.add_argument('--max_epoch', type=int, default=1)
+    parser.add_argument('--max_epoch', type=int, default=128)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
@@ -541,20 +541,20 @@ if __name__ == '__main__':
         # p2 = min(min(predicted), min(y_train))
         p1 = -2
         p2 = 2
-        predicted1 = model(X).cpu().detach().numpy()
+        y = model(X).cpu().detach().numpy()
         if args.preprocessing == 'min max normalization':
-            predicted1 = predicted1 * (np.max(df['initiation']) - np.min(
+            y = y * (np.max(df['initiation']) - np.min(
                                        df['initiation'])) + np.min(
                                        df['initiation'])
             df['initiation'] = df['initiation'] * (np.max(
                                df['initiation']) - np.min(
                                df['initiation'])) + np.min(df['initiation'])
         if args.preprocessing == 'raw to log' or args.preprocessing == 'log to log':
-            predicted1 = 10**predicted1
+            y = 10**y
             df['initiation'] = 10**df['initiation']
         if args.preprocessing == 'raw to raw' or args.preprocessing == 'log to raw':
             pass
-        df['predicted'] = predicted1
+        df['predicted'] = y
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
                       y=list(df.loc[df['chrom'] == 'chr1', 'initiation']),
@@ -595,7 +595,7 @@ if __name__ == '__main__':
         predicted = model(X_test).detach().cpu().numpy()
         interpret(model, X_test, y_test, predicted, output_dir=args.output_dir,
                   cell_line=args.cell_line, marks=args.marks,
-                  baseline_method='zero_output')
+                  baseline_method='zero')
 
     if args.method == 'log FCNN Gridsearch':
         for i in args.marks:
@@ -766,7 +766,8 @@ if __name__ == '__main__':
         X_train = np.array([]).reshape(0, 1, window_size, 11)
         y_train = np.array([])
         for i in df.chrom.unique():
-            if i == 'chr1':
+            # assigning a chromosome to test set
+            if i == 'chr30':
                 X_test = df.loc[df['chrom'] == i, args.marks].to_numpy()
                 X_test = np.lib.stride_tricks.sliding_window_view(X_test, (
                     window_size, 11))
@@ -782,16 +783,19 @@ if __name__ == '__main__':
                     window_size - 1) / 2)): int(-1 * (((
                         window_size - 1) / 2)))]
                 y_train = np.concatenate((y_train, b))
-        X_test = X_test.reshape(-1, window_size, 11).transpose((0, 2, 1))
+        # random choice of objects for test set
+        # X_test = X_test.reshape(-1, window_size, 11).transpose((0, 2, 1))
         X_train = X_train.reshape(-1, window_size, 11).transpose((0, 2, 1))
         X_train, y_train = shuffle(X_train, y_train, random_state=42)
         y_train = y_train.reshape(-1, 1)
-        y_test = np.array(y_test).reshape(-1, 1)
+        # y_test = np.array(y_test).reshape(-1, 1)
+        X_test = torch.tensor(X_train[100000:200000], dtype=float32).to(device)
+        y_test = torch.tensor(y_train[100000:200000], dtype=float32).to(device)
         X_val = torch.tensor(X_train[0:100000], dtype=float32).to(device)
         y_val = torch.tensor(y_train[0:100000], dtype=float32).to(device)
-        X_train = torch.tensor(X_train[100000:], dtype=float32).to(device)
+        X_train = torch.tensor(X_train[200000:], dtype=float32).to(device)
         X_test = torch.tensor(X_test, dtype=float32).to(device)
-        y_train = torch.tensor(y_train[100000:], dtype=float32).to(device)
+        y_train = torch.tensor(y_train[200000:], dtype=float32).to(device)
         train_ds = TensorDataset(X_train, y_train)
         train_dl = DataLoader(train_ds, batch_size=args.batch_size)
         valid_ds = TensorDataset(X_val, y_val)
@@ -840,17 +844,15 @@ if __name__ == '__main__':
             y = np.concatenate((y, y_temp))
         with torch.no_grad():
             predicted_test = model(X_test).cpu().detach().numpy()
-        # predicted_test = np.pad(predicted_test, ((pad, pad), (0, 0)), 'constant')
-        y_train = y_train.cpu().detach().numpy()
-        with torch.no_grad():
             predicted = model(X_train).cpu().detach().numpy()
         # p1 = max(max(predicted), max(y_train))
         # p2 = min(min(predicted), min(y_train))
+        y_train = y_train.cpu().detach().numpy()
+        y_test = y_test.cpu().detach().numpy()
         p1 = -2
         p2 = 2
-        predicted1 = y
         if args.preprocessing == 'min max normalization':
-            predicted1 = predicted1 * (np.max(df['initiation']) - np.min(
+            y = y * (np.max(df['initiation']) - np.min(
                                        df['initiation'])) + np.min(
                                        df['initiation'])
             df['initiation'] = df['initiation'] * (np.max(
@@ -858,26 +860,29 @@ if __name__ == '__main__':
                                df['initiation'])) + np.min(
                                df['initiation'])
         if args.preprocessing == 'raw to log' or args.preprocessing == 'log to log':
-            predicted1 = 10**predicted1
+            y = 10**y
             df['initiation'] = 10**df['initiation']
         if args.preprocessing == 'raw to raw' or args.preprocessing == 'log to raw':
             pass
-        df['predicted'] = predicted1
+        df['predicted'] = y
+        df.to_csv('{}{}_df_predicted.csv'.format(args.output_dir,
+                                         args.cell_line))
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
-                      y=list(df.loc[df['chrom'] == 'chr1', 'initiation']),
-                      name='PODLS'))
-        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
-                      y=list(df.loc[df['chrom'] == 'chr1', 'predicted']),
-                      name='Predictions from CNN'))
-        fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == 'chr1']*2000),
-                      y=list(np.abs(df.loc[df['chrom'] == 'chr1', 'predicted'
-                                           ].to_numpy() - df.loc[
-                                            df['chrom'] == 'chr1',
-                                            'initiation'].to_numpy())),
-                                            name='Absolute error'))
-        fig.write_html("development/profile.html")
-        plt.plot([p1, p2], [p1, p2], '-', color='orange')
+        # ch = 'chr2'
+        # fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+        #               y=list(df.loc[df['chrom'] == ch, 'initiation']),
+        #               name='PODLS'))
+        # fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+        #               y=list(df.loc[df['chrom'] == ch, 'predicted']),
+        #               name='Predictions from CNN'))
+        # fig.add_trace(go.Scatter(x=list(df.index[df['chrom'] == ch]*2000),
+        #               y=list(np.abs(df.loc[df['chrom'] == ch, 'predicted'
+        #                                    ].to_numpy() - df.loc[
+        #                                     df['chrom'] == ch,
+        #                                     'initiation'].to_numpy())),
+        #                                     name='Absolute error'))
+        # fig.write_html("development/profile.html")
+        # plt.plot([p1, p2], [p1, p2], '-', color='orange')
         report(predicted, predicted_test, y_train, y_test, min_init, max_init,
                preprocessing=args.preprocessing, output_dir=args.output_dir,
                image_format=args.image_format, cell_line=args.cell_line)
