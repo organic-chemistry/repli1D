@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--distribution', type=str, default='histogram')
     parser.add_argument('--cell_line', type=str, default='K562')
     parser.add_argument('--listfile', nargs='+', type=str,
-                        default='data/K562_2000_merged_histones_init.csv')
+                        default='data/K562_2000_merged_histones_init.csv.gz')
     parser.add_argument('--marks', nargs='+', type=str,
                         default=['H2A.Z', 'H3K27ac', 'H3K79me2', 'H3K27me3',
                                  'H3K9ac', 'H3K4me2', 'H3K4me3', 'H3K9me3',
