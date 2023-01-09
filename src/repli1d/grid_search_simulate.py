@@ -66,6 +66,14 @@ if cell =="GM12878":
 else:
     marks = [["results//nn_%s_from_None.csv" %(cell),False,True,True,False,"rfd2init"]]
 
+marks += [["ORM",True,False,False,True,""]]
+
+marks += [["ORM",False,False,False,True,""]]
+
+marks += [["Mcm3",False,False,False,True,""],
+          ["Mcm7",False,False,False,True,""],
+          ["Orc2",False,False,False,True,""],
+          ["Orc3",False,False,False,True,""]]
 marks += [["peak",False,False,False,False,""],
           ["exp4",False,False,False,False,""],
           ["oli",False,False,False,False,""],
@@ -78,6 +86,7 @@ marks += [["peak",False,False,False,False,""],
           ["Bubble",True,False,False,True,""], #11
           ["MCM",False,False,False,True,""],
           ["MCMo",False,False,False,True,""]]
+
 """
 marks += ["RNA_seq"]
 marks += ['DNaseI',  'H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
@@ -155,11 +164,11 @@ for mark,correct,save,single,check_if_exist,rename_root in marks:
             continue
     if not args.around_opti:
         lp = []
-        for kon in [1e-6]:
+        for kon in [3e-6]:
             for ndiff in np.arange(30,121,15)/110:
                 #ndiff = 60
                 for random_activation in [0, 0.05, 0.1, 0.2]:
-                    for dori in [15]:
+                    for dori in [20]:
                         for fork_speed in [1.5]:
                             lp.append([kon,ndiff,random_activation,dori,fork_speed])
 
@@ -172,6 +181,14 @@ for mark,correct,save,single,check_if_exist,rename_root in marks:
                     [2,np.arange(0,0.3,0.05)],
                     [3,[1,5,10,15,20,30,40,50,75,100]],
                     [4,np.arange(0.5,5.1,0.5)]]
+        
+        if "Raji" in mark:
+            lp0=np.array([3e-6,0.37,0,20,1.5])
+            params=[[1,np.arange(0.25,2.5,0.1)],
+                    [2,np.arange(0,0.3,0.05)],
+                    [3,[1,5,10,15,20,30,40,50,75,100]],
+                    [4,np.arange(0.5,5.1,0.5)]]
+        
         if "Hela" in mark:
             lp0=np.array([3e-6,1.03,0,20,1.5])
             params=[[1,np.arange(0.32,2.5,0.1)],
@@ -247,6 +264,8 @@ for mark,correct,save,single,check_if_exist,rename_root in marks:
 
 
                 commands = [ bgcmd + " --cell %s"%csa]
+                if cell == "Raji":
+                    commands[-1] += " --logr"
             if cell in ["K562norandom"]:
                 commands = [ bgcmd + " --cell K562"]
 

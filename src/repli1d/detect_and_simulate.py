@@ -87,6 +87,7 @@ parser.add_argument('--take_five',action="store_true")
 parser.add_argument('--OE2IE',action="store_true")
 parser.add_argument('--mrt_res',type=int,default=10)
 parser.add_argument('--masking',type=int,default=200) # in kb
+parser.add_argument('--logr',action="store_true") # in kb
 
 
 # Cell is use to get signal
@@ -152,7 +153,7 @@ if args.forkseq:
 tot_diff = 0
 if not args.wholecell:
     list_task = [[start, end, ch, int(ndiff)]]
-    #print(list_task)
+    print(list_task)
     #exit()
     tot_diff += list_task[0][-1]
     if args.datafile != None:
@@ -701,7 +702,7 @@ else:
     noiselevel = np.sum(d3p)*noise/len(d3p)
     d3p += np.ones_like(d3p) * noiselevel
     early_over_late = False
-    if cell == "Raji":
+    if args.logr:
         early_over_late = True
     res = get_fast_MRT_RFDs(
         nsim, d3p, tot_diff, kon=kon,
@@ -932,14 +933,14 @@ for (start, end, ch, ndiff), [x, d3ps,stallps], res in zip(list_task, d3pl, lres
     # print(Deltas)
 
     if args.visu:
-
+        #print(MRTp[:1000])
         mask_MRT = mapboth(mask_MRT, MRT, int(mrt_res/resolution), pad=True)
         if "Yeast" in  cell:
             #print("La")
             ToSee = [[[MRTp, "MRT"], [x, MRT, "MRTexp"]],
                      [[RFD, "RFDExp"], [RFDs, "RFDsim"]]]
         else:
-            if cell != "Rajii":
+            if not args.logr:
                 MRTdraw =  1 - MRT
                 MRTpdraw = 1-MRTp
             else:

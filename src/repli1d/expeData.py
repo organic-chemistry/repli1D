@@ -67,7 +67,7 @@ def is_available(strain, experiment):
     avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2", "ExpGenes", "Faire", "Meth", "Meth450",
                  "Constant", "OKSeqF", "OKSeqR", "OKSeqS", "CNV", "NFR",
                  "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1","AT_20","AT_5","AT_30","RHMM","MRTstd",
-                 "RNA_seq","MCMo","MCMp","MCM-beda","Mcm3","Mcm7","Orc2","Orc3"]
+                 "RNA_seq","MCMo","MCMp","MCM-beda","Mcm3","Mcm7","Orc2","Orc3","ORM"]
     marks = ['H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
@@ -167,6 +167,16 @@ def is_available(strain, experiment):
         if strain in cells:
             files = glob.glob(root + strain + ".bedgraph")
             files.sort()
+            return True, files, 1
+    if experiment == "ORM":
+        root = ROOT + "/external/ORM/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.bedgraph")
+        # print(extract)
+        cells = ["Hela"]
+        cells.sort()
+        files = extract
+        if strain in cells:
             return True, files, 1
     #print("IRCRRRRRRRRRRRRRRRRRRRR")
     if experiment == "ORC1":
@@ -1163,16 +1173,17 @@ def replication_data(strain, experiment, chromosome,
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.ones_like(x)
 
-    if experiment == "Bubble":
+    if experiment in ["Bubble","ORM"]:
 
         index = ["chrom", "chromStart", "chromEnd", "signalValue"]
         chro = str(chromosome)
-        print(files)
+        #print(files)
+        #print("LAAAAAAAA")
         strain = pd.read_csv(files[0], sep="\t", names=index, skiprows=1)
-
+        #print(strain)
         data = strain[(strain.chrom == "chr%s" % chro) & (
             strain.chromStart > 1000 * start) & (strain.chromStart < 1000 * end)]
-
+        #print(data)
         x = np.array(data.chromStart / 2 + data.chromEnd / 2) / 1000  # kb
         y = np.array(data.signalValue)
 
@@ -1473,11 +1484,12 @@ def replication_data(strain, experiment, chromosome,
                 elif (strain == "Raji") and "chr%s_" % str(chu) in f:
                     print(f)
                     data = pd.read_csv(f)
-                    data=2**data
+                    #data=2**data
                     #data=np.exp(data)/35
                     break
             #print(len(data))
-            data[data < 0] = np.nan
+            if strain != "Raji":
+                data[data < 0] = np.nan
             data = np.array(data)
             data = np.concatenate([np.array([data[0]]*4), data,np.array([data[-1]]*4)]) # Because centered the first bin correstpond to 100 kb
             y = np.array(data[int(start / 10): int(end / 10)])

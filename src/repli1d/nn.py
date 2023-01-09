@@ -432,10 +432,12 @@ def compute_all_possible_batches(data_x,window_size,step_size,batch_size,drop_re
             all_possible_batches.append([ch,int(pos),tot_size])
         if not drop_remainder:
             left = len(data_x[ch]) - (int(pos)+batch_size)
+            #print(left)
             if left> 0 :
                 all_possible_batches.append([ch,int(pos)+batch_size,left])
-            if left < window_size:
-                raise
+            #if left < window_size:
+            #    print(left)
+            #    raise
 
     return tot_size,all_possible_batches
 
@@ -530,9 +532,7 @@ if __name__ == "__main__":
     from tensorflow.keras.callbacks import (EarlyStopping, History, ModelCheckpoint,
                                  ReduceLROnPlateau)
     from repli1d.models import jm_cnn_model as create_model
-    from keras.models import  load_model
     import tensorflow as tf
-
 
     parser = argparse.ArgumentParser()
 
@@ -663,9 +663,10 @@ if __name__ == "__main__":
                 for v in valt:
                     assert(v not in traint)
             train, val = train_test_split(XC, traint, valt, notnan)
-            X_train_us, X_val_us, y_train_us, y_val_us = df[train], df[val], yinit[train], yinit[val]
 
             if not args.generator:
+                X_train_us, X_val_us, y_train_us, y_val_us = df[train], df[val], yinit[train], yinit[val]
+
                 vtrain = transform_seq(X_train_us, y_train_us, mask_borders, 1, window)
 
                 vval = transform_seq(X_val_us, y_val_us, mask_borders, 1, window)
@@ -741,7 +742,7 @@ if __name__ == "__main__":
             weight = rootnn+"/%sweights.hdf5" % cell
 
 
-        multi_layer_keras_model = load_model(weight)
+        multi_layer_keras_model = tf.keras.models.load_model(weight)
 
         multi_layer_keras_model.summary()
         if not args.generator:
@@ -872,7 +873,7 @@ if __name__ == "__main__":
                 wig = True
             else:
                 wig = False
-
+        print(wig)
         for namep in to_pred:
 
             cellp = os.path.split(namep)[1].split("_")[0]  # namep.split("_")[-1][:-4]
@@ -880,19 +881,31 @@ if __name__ == "__main__":
             print("Reading %s, cell %s" % (namep, cellp))
             temp_dict = load_signal(
                 namep, marks, targets=args.targets, t_norm=transform_norm,
-                wig=wig, smm=args.sm, augment=args.augment,
-                filter_anomaly=args.filter_anomaly)
+                smm=args.sm, wig=wig, augment=args.augment,
+                add_noise=args.add_noise,repertory_scaling_param=args.rootnn+"/")
             df, yinit, notnan, mask_borders = temp_dict.values()
-            vtrain = generator(X_train_us, y_train_us, mask_borders, 1, window,args.batch_size)
-            train_steps = n_steps(X_train_us, mask_borders, 1, window,args.batch_size)
-            vtrain = generator(x[2:], y[2:], 1, window,args.batch_size)
-            print(X.shape)
-            res = multi_layer_keras_model.predict(X)
-            del df, X, y
-            print(res.shape, "resshape", yinit.shape)
+            x = split(df,mask_borders)
+            y = split(yinit,mask_borders)
+            final = []
+            for ch,yt in zip(x,y):
+                ch=np.array(ch)
+                #print(ch.shape)
+                init_len = len(ch)
+                start = np.repeat(np.array(ch[0])[np.newaxis,:],window//2,axis=0)
+                end = np.repeat(np.array(ch[-1])[np.newaxis,:],window//2,axis=0)
+                ch = np.concatenate([start,ch,end],axis=0)
+                pred = generator([ch],[yt],  window,1,args.batch_size,random=False,drop_remainder=False)
+                steps = len(compute_all_possible_batches([ch],window,1,args.batch_size,drop_remainder=False)[1])
 
+
+                res = multi_layer_keras_model.predict(pred,steps=steps)
+                final.append(res)
+                assert(len(res) == init_len)
+                #print(len(res),len(ch))
+            #del df, X, y
+            #print(res.shape, "resshape", yinit.shape)
             for itarget, target in enumerate(args.targets):
-                XC["signalValue"] = repad1d(res[::, itarget], window)
+                XC["signalValue"] = np.concatenate([res[::, itarget] for res in final])
                 if target == "OKSeq":
                     XC["signalValue"] = XC["signalValue"] * 2-1
             # XC.to_csv("nn_hela_fk.csv",index=False,sep="\t")

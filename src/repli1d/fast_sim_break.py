@@ -1155,11 +1155,12 @@ def get_fast_MRT_RFDs(nsim, distrib, ndiff, dori=20, kon=0.001,
 
         if early_over_late:
             MRT_normed = MRTpstd[::,0]/(MRTpstd[::,1])
+            MRT_normed = np.log2(MRT_normed)
             MRT_normed[MRTpstd[::,1]==0]=np.nan
+            MRT_normed[np.isinf(MRT_normed)]=np.nan
         return MRT_normed,MRTpstd
 
     MRT_normed,MRTpstd = compute_mrt(MRTs,nMRT,early_over_late)
-
         #MRT_normed /= np.max(MRT_normed)
     #print(np.sum(MRTpstd,axis=1))
 

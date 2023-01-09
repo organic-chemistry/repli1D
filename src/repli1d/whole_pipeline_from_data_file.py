@@ -45,6 +45,7 @@ parser.add_argument('--threads', type=int,default=8,help="number of threads for 
 parser.add_argument('--update', action="store_true")
 parser.add_argument('--no-safety', dest="safety",action="store_false")
 parser.add_argument('--RFDonly', dest="RFDonly",action="store_true")
+parser.add_argument('--grid_rfd_opti_only', dest="grid_rfd_opti_only",action="store_true",help="For the small opti")
 parser.add_argument('--exclude_noise', dest="exclude_noise",action="store_true")
 parser.add_argument('--show', action="store_true")
 parser.add_argument('--test', action="store_true")
@@ -56,6 +57,7 @@ parser.add_argument('--max_factor_reptime', type=float,default=1.41)
 parser.add_argument('--on_input_signal', type=str,default=None)
 parser.add_argument('--sm', type=int,default=10,help="Smoothing of the signal before predicting using nn")
 parser.add_argument('--no_randval',dest="randval", action="store_false")
+parser.add_argument('--logr', dest="logr",action="store_true")
 
 
 args = parser.parse_args()
@@ -104,6 +106,8 @@ if args.cut_holes != 0:
     small_sub+= f"--cutholes {args.cut_holes} "
 if args.masking != 0:
     small_sub+= f"--masking {args.masking} "
+if args.logr:
+    small_sub+= f"--logr "
 if args.introduction_time > 0.20 * args.repTime:
     print("Introduction time larger than 20% of the replication time")
     print("If it is not on purpose please set --no-safety")
@@ -157,14 +161,17 @@ for loop in range(nloop):
     extra_small = ""
     if args.pearson:
         extra_small=" --pearson "
+    if args.grid_rfd_opti_only:
+        extra_small+=" --rfd_opti_only "
+
     cmd_opti = f"python src/repli1d/small_opty.py {extra_small} --size_segment {end/1000} --ndiff {ndiffs} --root {directory_opti}  --cmd '--kon {8.625/end} {small_sub} --start 0 --end {end} --ch {args.chr_sub} --nsim {nsim}  {cellcmd} "
 
     if loop == 0:
         if args.on_input_signal == None:
             if args.RFDonly:
-                cmd_opti += "--signal peakRFDonly' "
+                cmd_opti += "--signal peakRFDonly --dec 2 ' "
             else:
-                cmd_opti += "--signal peak' "
+                cmd_opti += "--signal peak --dec 2' "
         else:
             cmd_opti += f"--signal {args.on_input_signal}' "
 
@@ -186,7 +193,7 @@ for loop in range(nloop):
     if loop == 0:
         if args.on_input_signal == None:
             if args.RFDonly:
-                cmd_wholecell += "--signal peakRFDonly "
+                cmd_wholecell += "--signal peakRFDonly --dec 2 "
             else:
                 cmd_wholecell += "--signal peak"
         else:
