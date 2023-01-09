@@ -26,7 +26,7 @@ def mlp(X_train, targets):
     model.summary()
     return model
 
-def jm_cnn_model(X_train, targets, nfilters, kernel_length,
+def jm_cnn_model(X_train_shape, targets, nfilters, kernel_length,
                  loss="binary_crossentropy"):
     """The model that Jean Michel has implemented, and trained.
     """
