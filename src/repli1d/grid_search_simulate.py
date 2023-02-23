@@ -66,6 +66,10 @@ if cell =="GM12878":
 else:
     marks = [["results//nn_%s_from_None.csv" %(cell),False,True,True,False,"rfd2init"]]
 
+marks += [["MCM",False,False,False,True,""]]
+marks += [["MCM-Li",False,False,False,True,""]]
+
+
 marks += [["ORM",True,False,False,True,""]]
 
 marks += [["ORM",False,False,False,True,""]]

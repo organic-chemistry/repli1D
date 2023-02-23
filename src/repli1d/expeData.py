@@ -67,7 +67,7 @@ def is_available(strain, experiment):
     avail_exp = ["MRT", "OKSeq", "OKSeqo", "DNaseI", "ORC2", "ExpGenes", "Faire", "Meth", "Meth450",
                  "Constant", "OKSeqF", "OKSeqR", "OKSeqS", "CNV", "NFR",
                  "MCM", "HMM", "GC", "Bubble","G4","G4p","G4m","Ini","ORC1","AT_20","AT_5","AT_30","RHMM","MRTstd",
-                 "RNA_seq","MCMo","MCMp","MCM-beda","Mcm3","Mcm7","Orc2","Orc3","ORM"]
+                 "RNA_seq","MCMo","MCMp","MCM-beda","Mcm3","Mcm7","Orc2","Orc3","ORM","MCM-Li"]
     marks = ['H2az', 'H3k27ac', 'H3k27me3', 'H3k36me3', 'H3k4me1',
              'H3k4me2', 'H3k4me3', 'H3k79me2', 'H3k9ac', 'H3k9me1',
              'H3k9me3', 'H4k20me1', "SNS"]
@@ -202,6 +202,16 @@ def is_available(strain, experiment):
         root = ROOT + "/external/MCM2-bed/R1/"
         # root = ROOT + "/external/1kb_profiles//"
         extract = glob.glob(root + "*.txt")
+        #print(extract)
+        return True, extract, 1
+
+    if experiment in ["MCM-Li"]:
+            #print("LA")
+        if strain != "Hela":
+            return False,[],1
+        root = ROOT + "/external/MCM-Li/Rep1/"
+        # root = ROOT + "/external/1kb_profiles//"
+        extract = glob.glob(root + "*.dat")
         #print(extract)
         return True, extract, 1
 
@@ -624,11 +634,11 @@ def replication_data(strain, experiment, chromosome,
     if experiment != "" and os.path.exists(experiment):
         filename = experiment
 
-
+    #print("Here")
     if os.path.exists(strain) and strain.endswith("csv"):
         #print(strain)
         data=pd.read_csv(strain)
-        #print(len(data))
+        #print(data)
         sub = data[data.chrom==chromosome][experiment]
         y = np.array(sub[int(start/resolution):int(end/resolution)])
         print("Sizes",chromosome,len(sub),int(end/resolution))
@@ -880,6 +890,36 @@ def replication_data(strain, experiment, chromosome,
         else:
             return re_sample(x, y, start, end, resolution)
 
+    if experiment in ["MCM-Li"]:
+        #print(chromosome)
+        files = [f for f in files if "chr%i."%chromosome in f]
+        #print(files)
+        #files += [f.replace("Rep1","R2") for f in files]
+        #print(files)
+        def load_d(fich):
+            data = pd.read_csv(fich,sep="\t",names=["start","end"]) #np.sum([np.array(pd.read_csv(f))[:,0] for f in files],axis=0)
+            data.start /= 1000
+            #x = np.arange(len(data))  # kb
+            sub = (data.start> start) & (data.start < end)
+
+            data=data[sub]
+            x = np.array(data.start) 
+            y = np.ones(len(x))
+            x,y = re_sample(x, y, start, end, resolution)
+            return x,y
+        x,y1 = load_d(files[0])
+        x,y2 = load_d(files[0].replace("Rep1","Rep2"))
+        x,inp = load_d(files[0].replace("Rep1","Input"))
+
+        y = y1/2+y2/2
+        y /= inp
+        p99 = np.nanpercentile(y,[99])[0]
+        print("P99",p99)
+        y[y>=p99]=p99
+  
+
+        return  x,y
+
     if experiment in ["MCM","MCMp"]:
         #print(chromosome)
         files = [f for f in files if "chr%i."%chromosome in f]
@@ -894,6 +934,10 @@ def replication_data(strain, experiment, chromosome,
         x=x[sub]
         y = np.array(data[sub],dtype=np.float)
 
+        p99 = np.nanpercentile(y,[99])[0]
+        print("P99",p99)
+        y[y>=p99]=p99
+
         x,y = re_sample(x, y, start, end, resolution)
         if experiment == "MCMp":
             print(np.nanpercentile(y,50))
@@ -905,7 +949,6 @@ def replication_data(strain, experiment, chromosome,
 
             print(len(y),len(peaks),"Peaks")
             y[~peaksa]=0
-
         #raise "NT"
 
         return  x,y
