@@ -158,6 +158,7 @@ for loop in range(nloop):
 
     directory_opti = args.root+f"/_RFD_to_init_small_opti_{loop}/"
     end = int(sum(data.chrom==args.chr_sub) * args.resolution) # in kb
+    print(end)
     extra_small = ""
     if args.pearson:
         extra_small=" --pearson "

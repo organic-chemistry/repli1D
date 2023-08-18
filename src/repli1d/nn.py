@@ -572,6 +572,8 @@ if __name__ == "__main__":
     parser.add_argument('--filter_anomaly', action="store_true")
     parser.add_argument('--generator', action="store_true")
     parser.add_argument('--random_val', action="store_true")
+    parser.add_argument('--sub', type=int,default=1)
+
 
 
     args = parser.parse_args()
@@ -619,6 +621,9 @@ if __name__ == "__main__":
             wig = True
         else:
             wig = False
+    #if args.predict_file == []:
+    #    predict_file = args.list_file
+
     if args.weight is None or args.restart:
         X_train = []
         for name in listfile:
@@ -725,6 +730,8 @@ if __name__ == "__main__":
                 print("Shapes",x.shape,y.shape)
         if not args.generator:
             X_train, y_train = unison_shuffled_copies(X_train, y_train)
+            X_train = X_train[::args.sub] 
+            y_train = y_train[::args.sub]
 
             n = X_train.shape[0] * X_train.shape[2]
             if n > 1e9:
