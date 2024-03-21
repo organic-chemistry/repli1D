@@ -143,10 +143,9 @@ for loop in range(nloop):
         extra_nn = ""
         if args.reduce_lr:
             extra_nn = " --reduce_lr "
-        if args.randval:
-            extra_nn += " --random_val"
+        
         directory_nn = args.root+f"/RFD_to_init_nn_{loop}/"
-        cmd += [[f"python src/repli1d/nn.py {extra_nn} --max_epoch {max_epoch} --add_noise --nfilters {args.nfilters} --listfile {directory}/global_profiles.csv --datafile --marks RFDs MRTs --root {directory_nn} --sm {args.sm}  --noenrichment --window {window}",
+        cmd += [[f"python src/repli1d/nn.py --generator {extra_nn} --max_epoch {max_epoch} --add_noise --nfilters {args.nfilters} --listfile {directory}/global_profiles.csv --datafile --marks RFDs MRTs --root {directory_nn} --sm {args.sm}  --noenrichment --window {window}",
                  ""]]
     #print(sum(data.chr==args.chr_sub)*args.resolution/1000)
     megabase_sub= sum(data.chrom==args.chr_sub)*args.resolution/1000

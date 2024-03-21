@@ -51,7 +51,7 @@ parser.add_argument('--noise', type=float, default=.1)
 parser.add_argument('--kon', type=float, default=.005)
 parser.add_argument('--fsmooth', type=int, default=1)
 parser.add_argument('--n_jobs', type=int, default=8)
-parser.add_argument('--exp_factor', type=int, default=4)
+parser.add_argument('--exp_factor', type=float, default=4)
 parser.add_argument('--nMRT', type=int, default=6)
 
 
@@ -257,7 +257,7 @@ for start, end, ch, ndiff in list_task:
                               exp_factor=exp_factor,
                               percentile=percentile, cell=cell, cellMRT=comp, cellRFD=cellseq, nanpolate=True,
                               recomp=args.recomp, gsmooth=args.gsmooth, dec=args.dec, fsmooth=args.smoothpeak,
-                              expRFD=expRFD,rfd_only=rfd_only,exp4=exp4,oli=oli,peak_mrt=peak_mrt)
+                              expRFD=expRFD,rfd_only=rfd_only,exp4=exp4,oli=oli,peak_mrt=peak_mrt,logr=args.logr)
 
         if resolution != resolution_polarity:
             x, d3p0 = detect_peaks(start, end, ch,

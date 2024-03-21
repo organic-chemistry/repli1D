@@ -12,8 +12,10 @@ Install
 git clone git@github.com:organic-chemistry/repli1D.git
 cd  repli1D
 conda create -c bioconda -n repli  keras tensorflow snakemake numpy joblib plotly
+#conda create -c bioconda -n repli  keras tensorflow-gpu snakemake numpy joblib plotly
+
 conda activate repli
-python setup.py develop
+pip install -e ./
 ```
 
 Replicate results of the article

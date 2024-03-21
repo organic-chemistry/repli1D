@@ -688,8 +688,12 @@ if __name__ == "__main__":
             else:
                 x = split(df,mask_borders)
                 y = split(yinit,mask_borders)
+                #print(mask_borders)
+                #print(traint,tests,valt)
                 #print(traint)
-                assert(len(x)==(len(traint)+len(tests)+len(valt)))
+                #print(len(x),(len(traint)+len(tests)+len(valt)))
+                if not args.random_val:
+                    assert(len(x)==(len(traint)+len(tests)+len(valt)))
 
 
                 vtrain = generator(x[2:], y[2:],  window,1,args.batch_size,random=True,drop_remainder=True)
@@ -763,7 +767,7 @@ if __name__ == "__main__":
         if not args.generator:
             X_train_shape=X_train.shape
         else:
-            X_train_shape=(None,1,window,X_train_us.shape[-1])
+            X_train_shape=(None,1,window,x[1].shape[-1])
         if not args.imp:
             multi_layer_keras_model = create_model(
                 X_train_shape, targets=args.targets, nfilters=args.nfilters,

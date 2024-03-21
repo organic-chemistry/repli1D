@@ -426,7 +426,7 @@ def sm(ser, sc): return np.array(pd.Series(ser).rolling(
 def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=6, percentile=85, cell="K562",
                  cellMRT=None, cellRFD=None, nanpolate=False, fsmooth=None, gsmooth=5,
                  recomp=False, dec=None, fich_name=None, sim=True,expRFD="OKSeq",
-                 rfd_only=False,exp4=False,oli=False,peak_mrt=False):
+                 rfd_only=False,exp4=False,oli=False,peak_mrt=False,logr=False):
 
     rpol = resolution_polarity
     if exp4:
@@ -454,7 +454,12 @@ def detect_peaks(start, end, ch, resolution_polarity=5, exp_factor=6, percentile
             x_mrt, mrt_exp = replication_data(cellMRT, "MRT", chromosome=ch,
                                               start=start, end=end, resolution=resolution, raw=False)
 
-
+            if logr:
+                mrt_exp = np.exp(mrt_exp)
+                M = np.nanmax(mrt_exp)
+                m = np.nanmin(mrt_exp)
+                mrt_exp = 1-(mrt_exp-m) / (M-m)
+                print("Normed")
 
         # Loading RFD
 
