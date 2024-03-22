@@ -634,7 +634,7 @@ def replication_data(strain, experiment, chromosome,
     if experiment != "" and os.path.exists(experiment):
         filename = experiment
 
-    #print("Here")
+    print("Here",strain)
     if os.path.exists(strain) and strain.endswith("csv"):
         #print(strain)
         data=pd.read_csv(strain)
